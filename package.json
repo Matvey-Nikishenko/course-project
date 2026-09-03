@@ -1,0 +1,31 @@
+{
+  "name": "marketplace-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Marketplace API — Node.js PRO course project",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsc && node dist/main.js",
+    "lint:spec": "redocly lint openapi/openapi.yaml",
+    "bundle:spec": "redocly bundle openapi/openapi.yaml -o spec.json"
+  },
+  "dependencies": {
+    "@nestjs/common": "11.1.28",
+    "@nestjs/core": "11.1.28",
+    "@nestjs/platform-express": "11.1.28",
+    "express-openapi-validator": "5.6.2",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.15.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.46.0",
+    "@types/express": "5.0.0",
+    "@types/node": "22.20.1",
+    "typescript": "5.9.3"
+  }
+}
