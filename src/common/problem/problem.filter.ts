@@ -5,7 +5,7 @@ import {
   HttpException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { writeProblem } from './utils/problem';
+import { writeProblem } from './problem';
 
 interface ValidatorError {
   status?: number;

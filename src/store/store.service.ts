@@ -4,12 +4,12 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { CreateOrderItemDto } from './dto/create-order-item.dto';
-import type { Order } from './types/order';
-import type { Product } from './types/product';
+import type { CreateOrderItemDto } from '../orders/dto/create-order-item.dto';
+import type { Order } from '../orders/entities/order';
+import type { Product } from '../products/entities/product';
 
 @Injectable()
-export class MemoryStore {
+export class StoreService {
   readonly products: Product[] = [
     { id: 1, title: 'Keyboard', price_cents: 260000, stock: 10, image_url: 'https://cdn.example/kb.jpg' },
     { id: 2, title: 'Mouse', price_cents: 125000, stock: 5, image_url: null },

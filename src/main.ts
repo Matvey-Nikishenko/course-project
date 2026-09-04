@@ -6,10 +6,10 @@ import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import * as OpenApiValidator from 'express-openapi-validator';
 import { AppModule } from './app.module';
-import { IdempotencyInterceptor } from './idempotency.interceptor';
-import { writeProblem } from './utils/problem';
-import { ProblemFilter } from './problem.filter';
-import { validationFactory } from './utils/validation';
+import { IdempotencyInterceptor } from './common/idempotency/idempotency.interceptor';
+import { writeProblem } from './common/problem/problem';
+import { ProblemFilter } from './common/problem/problem.filter';
+import { validationFactory } from './common/validation/validation';
 
 const PORT = Number(process.env.PORT) || 3000;
 
