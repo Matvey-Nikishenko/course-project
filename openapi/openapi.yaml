@@ -1,0 +1,355 @@
+openapi: 3.0.3
+info:
+  title: Marketplace API
+  version: 0.1.0
+  description: |
+    Contract for the Marketplace API course project.
+servers:
+  - url: http://localhost:3000
+    description: Local in-memory server for HW#9
+security: []
+paths:
+  /products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      summary: List products with cursor pagination
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Catalog page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /products/{id}:
+    get:
+      operationId: getProduct
+      tags: [products]
+      summary: Get a single product
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Product found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /orders:
+    get:
+      operationId: listOrders
+      tags: [orders]
+      summary: List orders with cursor pagination
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Orders page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Place an order
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: >
+            Client-generated key for this create attempt. The same key and the
+            same body return the stored 201 response without debiting stock
+            again. The same key with a different body returns 422, and a key
+            whose first request is still running returns 409. Keys are kept for
+            24 hours; after that the key is forgotten and the same request
+            counts as a new attempt. Retrying without a key is forbidden
+            because POST is not idempotent and payment plus stock decrement
+            are irreversible.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+            example: 8f3c1a2e-4b9d-4c11-9e0a-checkout-1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrder'
+      responses:
+        '201':
+          description: Order created
+          headers:
+            Location:
+              description: URI of the new resource
+              schema:
+                type: string
+                example: /orders/2
+            Idempotency-Replay:
+              description: true when the response is replayed from the key store
+              schema:
+                type: string
+                enum: ['true']
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /orders/{id}:
+    get:
+      operationId: getOrder
+      tags: [orders]
+      summary: Get a single order
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Order found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      example: 1
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Page size. Defaults to 10, maximum 50.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 10
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: >
+        Opaque position token. The client must not parse or build it — only
+        send the next_cursor from the previous page. A missing cursor means
+        the first page; an empty value (?cursor=) is rejected with 400, so omit
+        the parameter instead of sending it blank. A token the server did not
+        issue is rejected with 400 bad-cursor.
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: >
+        Conflict with resource state: insufficient stock, or a request with the
+        same Idempotency-Key is still in flight.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    UnprocessableEntity:
+      description: Request semantics rejected (Idempotency-Key reuse, unknown product)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalServerError:
+      description: >
+        Unexpected server error. Also returned when a response fails validation
+        against this contract, so contract drift is visible instead of silent.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Problem:
+      type: object
+      additionalProperties: true
+      required: [type, title, status, detail, instance]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: URI of the problem type
+          example: https://api.marketplace.example/problems/400
+        title:
+          type: string
+          description: Short name of the problem class
+          example: Bad Request
+        status:
+          type: integer
+          description: HTTP status code
+          example: 400
+        detail:
+          type: string
+          description: What went wrong in this specific request
+          example: "request/headers must have required property 'idempotency-key'"
+        instance:
+          type: string
+          description: Reference to this occurrence (request path)
+          example: /orders
+    Product:
+      type: object
+      additionalProperties: false
+      required: [id, title, price_cents, stock, image_url]
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Keyboard
+        price_cents:
+          type: integer
+          description: Price in cents
+          example: 260000
+        stock:
+          type: integer
+          description: Warehouse quantity — the contended limited resource
+          example: 10
+        image_url:
+          type: string
+          nullable: true
+          description: Product photo; null until a file is uploaded
+          example: https://cdn.example/kb.jpg
+    ProductPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        next_cursor:
+          type: string
+          nullable: true
+          description: Opaque cursor for the next page; null means no further pages
+          example: eyJpZCI6Mn0
+    OrderItem:
+      type: object
+      additionalProperties: false
+      required: [product_id, quantity, unit_price_cents]
+      properties:
+        product_id:
+          type: integer
+          example: 1
+        quantity:
+          type: integer
+          example: 2
+        unit_price_cents:
+          type: integer
+          description: Unit price at checkout, in cents
+          example: 260000
+    Order:
+      type: object
+      additionalProperties: false
+      required: [id, items, total_cents, status, created_at]
+      properties:
+        id:
+          type: integer
+          example: 1
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        total_cents:
+          type: integer
+          description: Order total in cents
+          example: 520000
+        status:
+          type: string
+          enum: [new, paid, cancelled]
+          example: paid
+        created_at:
+          type: string
+          format: date-time
+          example: '2026-08-20T09:12:00.000Z'
+    OrderPage:
+      type: object
+      additionalProperties: false
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+        next_cursor:
+          type: string
+          nullable: true
+          description: Opaque cursor for the next page; null means no further pages
+    CreateOrder:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CreateOrderItem'
+    CreateOrderItem:
+      type: object
+      additionalProperties: false
+      required: [product_id, quantity]
+      properties:
+        product_id:
+          type: integer
+          minimum: 1
+        quantity:
+          type: integer
+          minimum: 1
+          example: 1
+tags:
+  - name: products
+    description: Product catalog
+  - name: orders
+    description: Buyer orders
