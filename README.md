@@ -20,6 +20,7 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | --- | --- | --- |
 | 2026-09-02 | Domain — Marketplace API | Course default; covers the homework checklist. |
 | 2026-09-02 | HW#9 — variant B | Spec is a promise; `express-openapi-validator` checks it at runtime. |
+| 2026-09-07 | Idempotency keys expire after 24h | An unbounded in-process map is a leak; an external store with native TTL comes with HW#14. |
 
 ## HW#9
 

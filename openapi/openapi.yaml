@@ -26,6 +26,8 @@ paths:
                 $ref: '#/components/schemas/ProductPage'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /products/{id}:
     get:
       operationId: getProduct
@@ -44,6 +46,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /orders:
     get:
       operationId: listOrders
@@ -61,6 +65,8 @@ paths:
                 $ref: '#/components/schemas/OrderPage'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
     post:
       operationId: createOrder
       tags: [orders]
@@ -72,9 +78,12 @@ paths:
           description: >
             Client-generated key for this create attempt. The same key and the
             same body return the stored 201 response without debiting stock
-            again. The same key with a different body returns 422. Retrying
-            without a key is forbidden because POST is not idempotent and
-            payment plus stock decrement are irreversible.
+            again. The same key with a different body returns 422, and a key
+            whose first request is still running returns 409. Keys are kept for
+            24 hours; after that the key is forgotten and the same request
+            counts as a new attempt. Retrying without a key is forbidden
+            because POST is not idempotent and payment plus stock decrement
+            are irreversible.
           schema:
             type: string
             minLength: 1
@@ -110,6 +119,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /orders/{id}:
     get:
       operationId: getOrder
@@ -128,6 +139,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
   parameters:
     Id:
@@ -155,7 +168,9 @@ components:
       description: >
         Opaque position token. The client must not parse or build it — only
         send the next_cursor from the previous page. A missing cursor means
-        the first page.
+        the first page; an empty value (?cursor=) is rejected with 400, so omit
+        the parameter instead of sending it blank. A token the server did not
+        issue is rejected with 400 bad-cursor.
       schema:
         type: string
   responses:
@@ -172,13 +187,23 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
     Conflict:
-      description: Conflict with resource state (insufficient stock)
+      description: >
+        Conflict with resource state: insufficient stock, or a request with the
+        same Idempotency-Key is still in flight.
       content:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
     UnprocessableEntity:
       description: Request semantics rejected (Idempotency-Key reuse, unknown product)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    InternalServerError:
+      description: >
+        Unexpected server error. Also returned when a response fails validation
+        against this contract, so contract drift is visible instead of silent.
       content:
         application/problem+json:
           schema:
