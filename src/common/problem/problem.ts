@@ -8,6 +8,7 @@ export const TITLES: Record<number, string> = {
   409: 'Conflict',
   422: 'Unprocessable Entity',
   500: 'Internal Server Error',
+  503: 'Service Unavailable',
 };
 
 export function writeProblem(

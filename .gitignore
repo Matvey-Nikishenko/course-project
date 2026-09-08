@@ -6,3 +6,8 @@ spec.json
 .idea/
 .vscode/
 .cursor/
+
+# Real configuration and secrets. The contract .env.example is committed;
+# these are not.
+.env
+secrets/

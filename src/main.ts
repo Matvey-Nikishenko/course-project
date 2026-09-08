@@ -1,7 +1,8 @@
 import 'reflect-metadata';
 import path from 'node:path';
-import { ValidationPipe } from '@nestjs/common';
+import { LogLevel, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { ConfigService } from '@nestjs/config';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import * as OpenApiValidator from 'express-openapi-validator';
@@ -10,8 +11,14 @@ import { IdempotencyInterceptor } from './common/idempotency/idempotency.interce
 import { writeProblem } from './common/problem/problem';
 import { ProblemFilter } from './common/problem/problem.filter';
 import { validationFactory } from './common/validation/validation';
+import { Env } from './config/env.schema';
 
-const PORT = Number(process.env.PORT) || 3000;
+const LOG_LEVELS: Record<Env['LOG_LEVEL'], LogLevel[]> = {
+  debug: ['error', 'warn', 'log', 'debug', 'verbose'],
+  info: ['error', 'warn', 'log'],
+  warn: ['error', 'warn'],
+  error: ['error'],
+};
 
 function validatorErrorHandler(
   err: { status?: number; message?: string; errors?: unknown },
@@ -34,10 +41,13 @@ function validatorErrorHandler(
 }
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'warn'],
-    bodyParser: false,
-  });
+  const app = await NestFactory.create(AppModule, { bodyParser: false });
+
+  const config = app.get(ConfigService<Env, true>);
+  app.useLogger(LOG_LEVELS[config.get('LOG_LEVEL', { infer: true })]);
+  // SIGTERM has to close the server and the pg pool, otherwise the container
+  // hangs until SIGKILL — a listener that only logs is worse than none.
+  app.enableShutdownHooks();
 
   app.use(express.json());
   app.use(
@@ -59,8 +69,9 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new ProblemFilter());
   app.useGlobalInterceptors(new IdempotencyInterceptor());
 
-  await app.listen(PORT);
-  console.log(`Marketplace API (hw-09, variant B, NestJS) on http://localhost:${PORT}`);
+  const port = config.get('PORT', { infer: true });
+  await app.listen(port);
+  console.log(`Marketplace API (NestJS) on http://localhost:${port}`);
 }
 
 bootstrap();
