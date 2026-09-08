@@ -141,6 +141,44 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /health:
+    get:
+      operationId: getHealth
+      tags: [health]
+      summary: Liveness probe
+      description: >
+        Reports that the process is up and how long it has been running.
+        uptime_sec is what proves a secret rotation did not restart the
+        service: it keeps growing across a rotation.
+      responses:
+        '200':
+          description: Process is up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /health/db:
+    get:
+      operationId: getDatabaseHealth
+      tags: [health]
+      summary: Database probe
+      description: >
+        Runs a query through the connection pool. The pool reads the database
+        password from a file on every new connection, so this stays 200 after
+        the password is rotated underneath the running process.
+      responses:
+        '200':
+          description: Database answered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseHealth'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 components:
   parameters:
     Id:
@@ -200,6 +238,12 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    ServiceUnavailable:
+      description: A dependency the request needs is not reachable right now
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     InternalServerError:
       description: >
         Unexpected server error. Also returned when a response fails validation
@@ -209,6 +253,37 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
   schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status, uptime_sec]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        uptime_sec:
+          type: number
+          description: Seconds since this process started
+          example: 42.7
+    DatabaseHealth:
+      type: object
+      additionalProperties: false
+      required: [status, uptime_sec, db_user, db_time]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        uptime_sec:
+          type: number
+          example: 42.7
+        db_user:
+          type: string
+          description: Role the pool authenticated as
+          example: app_user
+        db_time:
+          type: string
+          description: Server time reported by the database
+          example: '2026-09-08 13:04:11.512345+00'
     Problem:
       type: object
       additionalProperties: true
@@ -353,3 +428,5 @@ tags:
     description: Product catalog
   - name: orders
     description: Buyer orders
+  - name: health
+    description: Liveness and dependency probes

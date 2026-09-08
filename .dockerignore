@@ -1,0 +1,27 @@
+# Layers are append-only: anything copied in stays in the image forever, even
+# if a later RUN deletes it. So secrets must never enter the build context.
+.env
+.env.*
+!.env.example
+secrets/
+
+node_modules/
+dist/
+spec.json
+
+.git/
+.gitignore
+.cursor/
+.idea/
+.vscode/
+*.log
+*.md
+.DS_Store
+
+# Local-only tooling: the image runs the app, it does not rotate secrets
+# or start a database.
+docker-compose.yml
+Dockerfile
+.dockerignore
+rotate.sh
+db/
