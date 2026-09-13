@@ -81,9 +81,9 @@ makes the pool emit `error`; `DatabaseService` listens for that, which is why
 the process survives instead of dying on `Unhandled 'error' event`.
 
 ```bash
-curl -s localhost:3000/health          # note uptime_sec
-bash rotate.sh                         # or: npm run rotate
-curl -s localhost:3000/health/db       # 200, and uptime_sec is larger
+curl -s "localhost:${PORT:-3000}/health"       # note uptime_sec
+bash rotate.sh                                 # or: npm run rotate
+curl -s "localhost:${PORT:-3000}/health/db"    # 200, and uptime_sec is larger
 ```
 
 `rotate.sh` does three things in this order:
@@ -98,9 +98,11 @@ Between steps 1 and 2 there is a millisecond window where a new connection with
 the old password fails. Production secret managers close it with two
 alternating users: while `user_a` serves traffic, `user_b` is rotated.
 
-After `npm run db:down` the database is recreated from `db/init.sql` with the
-starting password, while `secrets/db_password` still holds the rotated one.
-`npm run db:up` realigns them, so run it instead of starting compose by hand.
+The password itself lives in one place only: `secrets/db_password`.
+`db/init.sql` creates `app_user` without a password, and `npm run db:up` pushes
+the file's value into the role — generating one on the first run. So after
+`npm run db:down` the recreated role is passwordless until `db:up` realigns it
+with the file, which is why you run that instead of starting compose by hand.
 
 ## HW#9
 

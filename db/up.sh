@@ -7,13 +7,14 @@ SECRET_FILE="${DB_PASSWORD_FILE:-secrets/db_password}"
 DB_ROLE="${DB_ROLE:-app_user}"
 
 mkdir -p "$(dirname "${SECRET_FILE}")"
-[ -f "${SECRET_FILE}" ] || printf 'app-v1-password' > "${SECRET_FILE}"
+[ -f "${SECRET_FILE}" ] || printf 'app-%s' "$(openssl rand -hex 8)" > "${SECRET_FILE}"
 
 docker compose up -d --wait
 
 # The role keeps whatever password it had (rotations survive a plain restart),
-# while a fresh volume resets it to the one in db/init.sql. Pushing the file's
-# value into the role makes startup idempotent either way.
+# while a fresh volume recreates it without one, because db/init.sql sets no
+# password. Pushing the file's value into the role makes startup idempotent
+# either way, and keeps the file the only place the password is stored.
 docker compose exec -T db psql -U admin -d marketplace \
   -c "ALTER ROLE ${DB_ROLE} WITH PASSWORD '$(cat "${SECRET_FILE}")';" >/dev/null
 

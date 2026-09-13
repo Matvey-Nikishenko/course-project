@@ -1,10 +1,12 @@
--- Application role. This starting password must match the one npm run db:up
--- writes into secrets/db_password, otherwise the first connection fails with
--- "password authentication failed".
+-- Application role, created without a password on purpose.
 --
--- rotate.sh never writes this value: it generates a fresh password each run
--- and overwrites both the role and the file. After `docker compose down -v`
--- the database is recreated from this file, so the secret file has to be
--- reset to the starting password as well — npm run db:up does that.
-CREATE ROLE app_user LOGIN PASSWORD 'app-v1-password';
+-- The only source of truth for that password is the secret file: npm run db:up
+-- pushes the file's value into the role right after the container is ready.
+-- A starting password written here as well would be a second source, and the
+-- two would drift apart the moment either side changed.
+--
+-- rotate.sh generates a fresh password each run and overwrites both the role
+-- and the file. After `docker compose down -v` this file recreates the role
+-- without a password, and db:up restores it from the secret file.
+CREATE ROLE app_user LOGIN;
 GRANT CONNECT ON DATABASE marketplace TO app_user;
