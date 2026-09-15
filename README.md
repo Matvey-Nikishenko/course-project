@@ -23,6 +23,9 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | 2026-09-07 | Idempotency keys expire after 24h | An unbounded in-process map is a leak; an external store with native TTL comes with HW#14. |
 | 2026-09-08 | Env validated by one zod schema at startup | A broken variable has to kill the process with a named cause, not surface on the first request in production. |
 | 2026-09-08 | DB password in a file, not in `DB_URL` | The environment of a running process is a snapshot taken at exec, so an env variable cannot be rotated without a restart. |
+| 2026-09-15 | Money is `numeric(12,2)` in the database | Float cannot hold `0.01`, and a debit that drifts is a lost invoice. The HW#9 HTTP contract keeps integer cents, so the two representations do not match yet — reconciling them belongs to the mapping layer of HW#13, not here. |
+| 2026-09-15 | Keys are `GENERATED ALWAYS AS IDENTITY`, not `serial` | The sequence belongs to the column, an explicit INSERT cannot desynchronise it, and writing the id is not a privilege handed out with the table. |
+| 2026-09-15 | Catalog search stays on `simple` FTS config | This Postgres ships 29 configurations and none is Ukrainian, so search matches exact word forms only. Named as a documented limitation in `db/OPTIMIZATIONS.md`; substituting `russian` would guess Ukrainian endings by foreign rules and hide the problem instead of fixing it. |
 
 ## Configuration
 
@@ -38,13 +41,21 @@ build context.
 
 ### Variables
 
-| Variable | Required | Default | Meaning |
-| --- | --- | --- | --- |
-| `PORT` | no | `3000` | HTTP port of the API. |
-| `LOG_LEVEL` | no | `info` | `debug` \| `info` \| `warn` \| `error`. |
-| `DB_URL` | **yes** | — | Postgres descriptor, e.g. `postgres://app_user@127.0.0.1:5433/marketplace`. Must not contain a password: the schema rejects one. |
-| `DB_PASSWORD_FILE` | no | `secrets/db_password` | File holding the database password, read on every new pool connection. |
-| `DB_POOL_MAX` | no | `5` | Maximum connections in the pg pool. |
+| Variable | Required | Default | Source | Meaning |
+| --- | --- | --- | --- | --- |
+| `PORT` | no | `3000` | `.env` | HTTP port of the API. |
+| `LOG_LEVEL` | no | `info` | `.env` | `debug` \| `info` \| `warn` \| `error`. |
+| `DB_URL` | **yes** | — | **secret storage from HW#11** — `.env` locally, mounted secret in prod; never a new env file | Postgres descriptor of the HW#12 database, e.g. `postgres://app_user@127.0.0.1:5433/marketplace`. Must not contain a password: the schema rejects one. |
+| `DB_PASSWORD_FILE` | no | `secrets/db_password` | **secret storage from HW#11** — file path, the value itself is never in git | File holding the database password, read on every new pool connection. |
+| `DB_POOL_MAX` | no | `5` | `.env` | Maximum connections in the pg pool. |
+
+The two rows marked as storage are the only ones carrying a credential. They are
+declared in `.env.example` with a fake value and resolved at runtime from the
+storage set up in HW#11 — that is why no tracked env file besides
+`.env.example` mentions a connection string. The Postgres container's own dev
+credentials are a different path: they stay in `docker-compose.yml` in plain
+sight, because a grader cloning this repo needs the local stand to come up
+without any secret at all.
 
 
 ### Running it
@@ -103,6 +114,62 @@ The password itself lives in one place only: `secrets/db_password`.
 the file's value into the role — generating one on the first run. So after
 `npm run db:down` the recreated role is passwordless until `db:up` realigns it
 with the file, which is why you run that instead of starting compose by hand.
+
+## HW#12 — дата-шар: схема, обсяг, індекси
+
+Головна таблиця — **`orders`** (120 000 рядків). Таблиця, по якій шукає q4, —
+**`products`** (120 000 рядків).
+
+Підняти базу:
+
+```bash
+docker compose up -d --wait
+```
+
+Підключитись:
+
+```bash
+docker compose exec db psql -U admin -d marketplace
+```
+
+Обидва рядки працюють на свіжому клоні без правок файлів: дев-креденшели стенда
+лежать у `docker-compose.yml`, а тека `db/` змонтована в контейнер як `/db:ro`,
+тому `psql -f /db/schema.sql` не потребує клієнта psql на хості.
+
+Повний цикл — той самий порядок, у якому знято числа в `db/OPTIMIZATIONS.md`:
+
+```bash
+docker compose down -v && docker compose up -d --wait
+
+docker compose exec -T db psql -U admin -d marketplace -f /db/schema.sql
+docker compose exec -T db psql -U admin -d marketplace -f /db/seed.sql
+
+# EXPLAIN «до»: кожен запит дає Seq Scan
+for q in 1 2 3 4; do
+  docker compose exec -T db psql -U admin -d marketplace \
+    -c "EXPLAIN (ANALYZE, BUFFERS) $(cat db/queries/q$q.sql)"
+done
+
+docker compose exec -T db psql -U admin -d marketplace -f /db/indexes.sql
+docker compose exec -T db psql -U admin -d marketplace -c "ANALYZE;"
+
+# EXPLAIN «після»: Seq Scan зник, у вузлі — ім'я індексу з db/indexes.sql.
+# q4 проганяємо тричі: перший раз GIN ще холодний.
+for q in 1 2 3 4; do
+  docker compose exec -T db psql -U admin -d marketplace \
+    -c "EXPLAIN (ANALYZE, BUFFERS) $(cat db/queries/q$q.sql)"
+done
+```
+
+| Файл | Що всередині |
+| --- | --- |
+| `db/schema.sql` | 4 таблиці, 4 FOREIGN KEY, `numeric`/`timestamptz`, CHECK, генерована `tsvector`-колонка |
+| `db/seed.sql` | 50 000 users, 120 000 products, 120 000 orders, 240 000 order_items + `VACUUM (ANALYZE)` |
+| `db/queries/q1..q4.sql` | замовлення покупця за період · черга необроблених · вхід за email без регістру · пошук по каталогу |
+| `db/indexes.sql` | 4 індекси: composite, partial, expression, GIN по tsvector |
+| `db/OPTIMIZATIONS.md` | 4 пари EXPLAIN до/після, розбір планів, секція «Морфологія» |
+
+Прискорення — від ×12 до ×132; деталі й повні плани у звіті.
 
 ## HW#9
 
