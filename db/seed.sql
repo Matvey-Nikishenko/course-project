@@ -55,9 +55,6 @@ JOIN (
 ) AS p(lo, hi, noun, adj, cat)
   ON (i % 1000) BETWEEN p.lo AND p.hi;
 
--- Orders. Buyer ids 5001..14000 are the heavy fifth that carries 80% of the
--- traffic; 14001..50000 order rarely. Statuses are 70/20/8/2, so 'new' is the
--- narrow slice a partial index is built for.
 INSERT INTO orders (buyer_id, status, total, created_at)
 SELECT
   CASE

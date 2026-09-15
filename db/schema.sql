@@ -1,16 +1,4 @@
 -- Marketplace data layer. Applies to an empty database in one run.
---
--- Type choices worth naming out loud:
---   * money is numeric(12,2), never float — binary floating point cannot hold
---     0.01 exactly, and a marketplace debit that drifts is a lost invoice;
---   * time is timestamptz, so a row keeps its instant no matter which timezone
---     the API process happens to run in;
---   * keys are GENERATED ALWAYS AS IDENTITY rather than serial: the sequence
---     belongs to the column, an explicit INSERT cannot desynchronise it, and
---     the privilege to write the id is not handed out with the table.
---
--- Every CHECK below guards a value the domain can never take truthfully:
--- negative money, an empty cart line, a status the API does not know.
 
 CREATE TABLE users (
   id         bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -31,10 +19,6 @@ CREATE TABLE products (
   -- Search document, maintained by the database itself. A generated column
   -- cannot drift from name/description the way a trigger-filled column can,
   -- and no INSERT or UPDATE in the API has to remember it exists.
-  --
-  -- The 'simple' configuration only lowercases and splits on word boundaries:
-  -- it does no stemming at all. That is a deliberate, documented limitation —
-  -- see the Морфологія section of db/OPTIMIZATIONS.md.
   search_vector tsvector GENERATED ALWAYS AS (
     to_tsvector('simple', name || ' ' || description)
   ) STORED
