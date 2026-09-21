@@ -145,7 +145,7 @@ docker compose exec -T db psql -U admin -d marketplace -f /db/schema.sql
 docker compose exec -T db psql -U admin -d marketplace -f /db/seed.sql
 
 # EXPLAIN «до»: кожен запит дає Seq Scan
-for q in 1 2 3 4; do
+for q in 1 2 3 4 5 6; do
   docker compose exec -T db psql -U admin -d marketplace \
     -c "EXPLAIN (ANALYZE, BUFFERS) $(cat db/queries/q$q.sql)"
 done
@@ -155,7 +155,7 @@ docker compose exec -T db psql -U admin -d marketplace -c "ANALYZE;"
 
 # EXPLAIN «після»: Seq Scan зник, у вузлі — ім'я індексу з db/indexes.sql.
 # q4 проганяємо тричі: перший раз GIN ще холодний.
-for q in 1 2 3 4; do
+for q in 1 2 3 4 5 6; do
   docker compose exec -T db psql -U admin -d marketplace \
     -c "EXPLAIN (ANALYZE, BUFFERS) $(cat db/queries/q$q.sql)"
 done
@@ -165,9 +165,9 @@ done
 | --- | --- |
 | `db/schema.sql` | 4 таблиці, 4 FOREIGN KEY, `numeric`/`timestamptz`, CHECK, генерована `tsvector`-колонка |
 | `db/seed.sql` | 50 000 users, 120 000 products, 120 000 orders, 240 000 order_items + `VACUUM (ANALYZE)` |
-| `db/queries/q1..q4.sql` | замовлення покупця за період · черга необроблених · вхід за email без регістру · пошук по каталогу |
-| `db/indexes.sql` | 4 індекси: composite, partial, expression, GIN по tsvector |
-| `db/OPTIMIZATIONS.md` | 4 пари EXPLAIN до/після, розбір планів, секція «Морфологія» |
+| `db/queries/q1..q6.sql` | замовлення покупця за період · черга необроблених · вхід за email без регістру · пошук по каталогу · товари продавця · рядки замовлення за товаром |
+| `db/indexes.sql` | 6 індексів: composite, partial, expression, GIN по tsvector, btree під `seller_id` і `product_id` |
+| `db/OPTIMIZATIONS.md` | 6 пар EXPLAIN до/після, розбір планів, секція «Морфологія» |
 
 Прискорення — від ×12 до ×132; деталі й повні плани у звіті.
 

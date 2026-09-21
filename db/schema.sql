@@ -9,6 +9,9 @@ CREATE TABLE users (
 
 CREATE TABLE products (
   id          bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  -- Postgres does not create an index for a FOREIGN KEY. A seller's catalog
+  -- listing filters on this column alone, so idx_products_seller_id lives in
+  -- db/indexes.sql — without it the planner Seq-scans all 120 000 products.
   seller_id   bigint      NOT NULL REFERENCES users (id),
   name        text        NOT NULL CHECK (length(name) > 0),
   description text        NOT NULL DEFAULT '',
@@ -35,11 +38,15 @@ CREATE TABLE orders (
 CREATE TABLE order_items (
   id         bigint  GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   order_id   bigint  NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
+  -- UNIQUE (order_id, product_id) below leads with order_id, so a lookup by
+  -- product_id cannot use it (the right-hand column of a btree is not a start
+  -- key). idx_order_items_product_id in db/indexes.sql covers "who bought this".
   product_id bigint  NOT NULL REFERENCES products (id),
   quantity   integer NOT NULL CHECK (quantity > 0),
   unit_price numeric(12, 2) NOT NULL CHECK (unit_price >= 0),
 
   -- The same product twice in one order is a duplicated line, not two lines.
+  -- Left-leading on order_id, so "lines of this order" uses this unique index.
   UNIQUE (order_id, product_id)
 );
 

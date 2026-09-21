@@ -16,6 +16,8 @@
 | q2 — черга необроблених | 7.654 ms | 0.314 ms | ×24 | 1013 → 52 |
 | q3 — вхід за email без регістру | 18.116 ms | 0.137 ms | ×132 | 468 → 4 |
 | q4 — пошук по каталогу | 24.093 ms | 2.013 ms | ×12 | 10916 → 232 |
+| q5 — товари продавця | 23.947 ms | 0.153 ms | ×156 | 10910 → 29 |
+| q6 — рядки замовлення за товаром | 6.079 ms | 0.072 ms | ×84 | 2000 → 8 |
 
 ---
 
@@ -242,6 +244,103 @@ B-tree цей запит не закрив би взагалі: не існує 
 
 ---
 
+## q5 — каталог одного продавця
+
+```sql
+SELECT id, name, price, stock
+FROM products
+WHERE seller_id = 777
+```
+
+Postgres не будує індекс під `FOREIGN KEY`. Без окремого btree колонка
+`products.seller_id` — це просто ще одне поле, і «показати товари продавця 777»
+читає всю таблицю.
+
+### До
+
+```
+ Seq Scan on products  (cost=0.00..12410.00 rows=24 width=69) (actual time=0.814..23.916 rows=24 loops=1)
+   Filter: (seller_id = 777)
+   Rows Removed by Filter: 119976
+   Buffers: shared hit=10719 read=191
+ Planning:
+   Buffers: shared hit=90
+ Planning Time: 0.271 ms
+ Execution Time: 23.947 ms
+```
+
+### Після
+
+```
+ Bitmap Heap Scan on products  (cost=4.48..97.40 rows=24 width=69) (actual time=0.038..0.114 rows=24 loops=1)
+   Recheck Cond: (seller_id = 777)
+   Heap Blocks: exact=24
+   Buffers: shared hit=29
+   ->  Bitmap Index Scan on idx_products_seller_id  (cost=0.00..4.47 rows=24 width=0) (actual time=0.030..0.030 rows=24 loops=1)
+         Index Cond: (seller_id = 777)
+         Buffers: shared hit=5
+ Planning:
+   Buffers: shared hit=106
+ Planning Time: 0.312 ms
+ Execution Time: 0.153 ms
+```
+
+У план став `Bitmap Index Scan on idx_products_seller_id`. Зник `Seq Scan`, який
+просіяв 119 976 чужих рядків; індекс віддає 24 `ctid`, купа читає 24 сторінки.
+Buffers 10 910 → 29.
+
+---
+
+## q6 — хто купив цей товар
+
+```sql
+SELECT id, order_id, quantity, unit_price
+FROM order_items
+WHERE product_id = 777
+```
+
+`UNIQUE (order_id, product_id)` веде з `order_id`, тож вибірка за правим ключем
+його не чіпає: btree шукає зліва направо. Планер іде в `Gather` + `Parallel Seq Scan`.
+
+### До
+
+```
+ Gather  (cost=1000.00..4764.91 rows=2 width=26) (actual time=2.640..6.046 rows=2 loops=1)
+   Workers Planned: 1
+   Workers Launched: 1
+   Buffers: shared hit=2000
+   ->  Parallel Seq Scan on order_items  (cost=0.00..3764.71 rows=1 width=26) (actual time=2.603..4.149 rows=1 loops=2)
+         Filter: (product_id = 777)
+         Rows Removed by Filter: 119999
+         Buffers: shared hit=2000
+ Planning:
+   Buffers: shared hit=88
+ Planning Time: 0.239 ms
+ Execution Time: 6.079 ms
+```
+
+### Після
+
+```
+ Bitmap Heap Scan on order_items  (cost=4.44..12.27 rows=2 width=26) (actual time=0.024..0.029 rows=2 loops=1)
+   Recheck Cond: (product_id = 777)
+   Heap Blocks: exact=2
+   Buffers: shared hit=8
+   ->  Bitmap Index Scan on idx_order_items_product_id  (cost=0.00..4.43 rows=2 width=0) (actual time=0.019..0.019 rows=2 loops=1)
+         Index Cond: (product_id = 777)
+         Buffers: shared hit=6
+ Planning:
+   Buffers: shared hit=101
+ Planning Time: 0.318 ms
+ Execution Time: 0.072 ms
+```
+
+У план став `Bitmap Index Scan on idx_order_items_product_id`. Зникли `Gather` і
+`Parallel Seq Scan` по 240 000 рядках: два рядки знаходяться з 8 буферів замість
+2 000.
+
+---
+
 ## Морфологія
 
 `simple` не має словника — він лише розбиває текст на слова й опускає регістр.
@@ -293,14 +392,16 @@ GIN-індексу, ні того прискорення з q4. Альтерна
 збереженої колонки: таблиця не росте, але вираз доводиться повторювати в кожному
 запиті слово в слово, інакше індекс не застосується.
 
-Разом індекси займають 15.7 MB:
+Разом індекси займають 21 MB:
 
 | Індекс | Розмір | Запит |
 | --- | --- | --- |
 | `idx_products_search_vector` | 9960 kB | q4 |
+| `idx_order_items_product_id` | 4776 kB | q6 |
 | `idx_orders_buyer_created` | 3720 kB | q1 |
 | `idx_users_email_lower` | 2008 kB | q3 |
+| `idx_products_seller_id` | 912 kB | q5 |
 | `idx_orders_pending_created` | 72 kB | q2 |
 
-Мертвих індексів немає — після чотирьох `EXPLAIN (ANALYZE)` у кожного
+Мертвих індексів немає — після `EXPLAIN (ANALYZE)` по q1–q6 у кожного
 `idx_scan > 0`.
