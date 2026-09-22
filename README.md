@@ -26,14 +26,16 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | 2026-09-15 | Money is `numeric(12,2)` in the database | Float cannot hold `0.01`, and a debit that drifts is a lost invoice. The HW#9 HTTP contract keeps integer cents, so the two representations do not match yet — reconciling them belongs to the mapping layer of HW#13, not here. |
 | 2026-09-15 | Keys are `GENERATED ALWAYS AS IDENTITY`, not `serial` | The sequence belongs to the column, an explicit INSERT cannot desynchronise it, and writing the id is not a privilege handed out with the table. |
 | 2026-09-15 | Catalog search stays on `simple` FTS config | This Postgres ships 29 configurations and none is Ukrainian, so search matches exact word forms only. Named as a documented limitation in `db/OPTIMIZATIONS.md`; substituting `russian` would guess Ukrainian endings by foreign rules and hide the problem instead of fixing it. |
+| 2026-09-21 | Money in the ORM schema is integer cents | HW#13 forbids float. The HTTP contract already uses cents; the mapping layer is the TypeORM column type `int`, not `numeric(12,2)`. `db/schema.sql` stays the HW#12 snapshot — live schema from here on is the migration. |
 
 ## Configuration
 
-Every variable the app reads is declared in `src/config/env.schema.ts`. The
-schema runs through `validate` in `ConfigModule.forRoot`, which happens before
-Nest builds the DI graph: a broken variable stops the process with a non-zero
-exit code and names every problem at once. Nothing reads `process.env`
-directly; the code takes values from `ConfigService<Env, true>`.
+The HTTP process reads variables through `src/config/env.schema.ts` and
+`ConfigService`. TypeORM CLI (`data-source.ts`) lives outside Nest, so it takes
+`DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME` from `process.env`.
+Those values are not in a new env file — `scripts/with-secrets.sh` injects them
+from the HW#11 store, and the grader uses `SKIP_VAULT=1` plus the `export` line
+in ## Grading.
 
 `.env.example` is the contract and lives in git. The real `.env` and the
 `secrets/` directory do not — they are git-ignored and excluded from the Docker
@@ -48,14 +50,16 @@ build context.
 | `DB_URL` | **yes** | — | **secret storage from HW#11** — `.env` locally, mounted secret in prod; never a new env file | Postgres descriptor of the HW#12 database, e.g. `postgres://app_user@127.0.0.1:5433/marketplace`. Must not contain a password: the schema rejects one. |
 | `DB_PASSWORD_FILE` | no | `secrets/db_password` | **secret storage from HW#11** — file path, the value itself is never in git | File holding the database password, read on every new pool connection. |
 | `DB_POOL_MAX` | no | `5` | `.env` | Maximum connections in the pg pool. |
+| `DB_HOST` | **yes** (TypeORM CLI) | — | **HW#11 store** | Postgres host for `data-source.ts`. |
+| `DB_PORT` | no | `5432` | **HW#11 store** | Port. This stand uses **5433** in compose. |
+| `DB_USER` | **yes** (TypeORM CLI) | — | **HW#11 store** | Role. The grader uses `admin` from compose. |
+| `DB_PASSWORD` | no | empty string | **HW#11 store** | Password. No literal in `data-source.ts`. |
+| `DB_NAME` | **yes** (TypeORM CLI) | — | **HW#11 store** | Database. Here: `marketplace`. |
 
-The two rows marked as storage are the only ones carrying a credential. They are
-declared in `.env.example` with a fake value and resolved at runtime from the
-storage set up in HW#11 — that is why no tracked env file besides
-`.env.example` mentions a connection string. The Postgres container's own dev
-credentials are a different path: they stay in `docker-compose.yml` in plain
-sight, because a grader cloning this repo needs the local stand to come up
-without any secret at all.
+`DB_URL`, `DB_PASSWORD_FILE`, and the TypeORM `DB_*` keys come from the HW#11
+store; they are not in git. Container dev credentials stay in
+`docker-compose.yml` on purpose: a grader on a fresh clone brings the stand up
+without the store (`SKIP_VAULT=1` in ## Grading).
 
 
 ### Running it
@@ -115,28 +119,28 @@ the file's value into the role — generating one on the first run. So after
 `npm run db:down` the recreated role is passwordless until `db:up` realigns it
 with the file, which is why you run that instead of starting compose by hand.
 
-## HW#12 — дата-шар: схема, обсяг, індекси
+## HW#12 — data layer: schema, volume, indexes
 
-Головна таблиця — **`orders`** (120 000 рядків). Таблиця, по якій шукає q4, —
-**`products`** (120 000 рядків).
+The main table is **`orders`** (120 000 rows). The table q4 searches is
+**`products`** (120 000 rows).
 
-Підняти базу:
+Bring the database up:
 
 ```bash
 docker compose up -d --wait
 ```
 
-Підключитись:
+Connect:
 
 ```bash
 docker compose exec db psql -U admin -d marketplace
 ```
 
-Обидва рядки працюють на свіжому клоні без правок файлів: дев-креденшели стенда
-лежать у `docker-compose.yml`, а тека `db/` змонтована в контейнер як `/db:ro`,
-тому `psql -f /db/schema.sql` не потребує клієнта psql на хості.
+Both lines work on a fresh clone with no file edits: stand credentials live in
+`docker-compose.yml`, and `db/` is mounted into the container as `/db:ro`, so
+`psql -f /db/schema.sql` does not need a host-side psql client.
 
-Повний цикл — той самий порядок, у якому знято числа в `db/OPTIMIZATIONS.md`:
+Full cycle — the same order used to capture numbers in `db/OPTIMIZATIONS.md`:
 
 ```bash
 docker compose down -v && docker compose up -d --wait
@@ -144,7 +148,7 @@ docker compose down -v && docker compose up -d --wait
 docker compose exec -T db psql -U admin -d marketplace -f /db/schema.sql
 docker compose exec -T db psql -U admin -d marketplace -f /db/seed.sql
 
-# EXPLAIN «до»: кожен запит дає Seq Scan
+# EXPLAIN before: every query is a Seq Scan
 for q in 1 2 3 4 5 6; do
   docker compose exec -T db psql -U admin -d marketplace \
     -c "EXPLAIN (ANALYZE, BUFFERS) $(cat db/queries/q$q.sql)"
@@ -153,27 +157,113 @@ done
 docker compose exec -T db psql -U admin -d marketplace -f /db/indexes.sql
 docker compose exec -T db psql -U admin -d marketplace -c "ANALYZE;"
 
-# EXPLAIN «після»: Seq Scan зник, у вузлі — ім'я індексу з db/indexes.sql.
-# q4 проганяємо тричі: перший раз GIN ще холодний.
+# EXPLAIN after: Seq Scan is gone; the node names an index from db/indexes.sql.
+# Run q4 three times: the first pass still hits a cold GIN.
 for q in 1 2 3 4 5 6; do
   docker compose exec -T db psql -U admin -d marketplace \
     -c "EXPLAIN (ANALYZE, BUFFERS) $(cat db/queries/q$q.sql)"
 done
 ```
 
-| Файл | Що всередині |
+| File | Contents |
 | --- | --- |
-| `db/schema.sql` | 4 таблиці, 4 FOREIGN KEY, `numeric`/`timestamptz`, CHECK, генерована `tsvector`-колонка |
+| `db/schema.sql` | 4 tables, 4 FOREIGN KEYs, `numeric`/`timestamptz`, CHECK, generated `tsvector` column |
 | `db/seed.sql` | 50 000 users, 120 000 products, 120 000 orders, 240 000 order_items + `VACUUM (ANALYZE)` |
-| `db/queries/q1..q6.sql` | замовлення покупця за період · черга необроблених · вхід за email без регістру · пошук по каталогу · товари продавця · рядки замовлення за товаром |
-| `db/indexes.sql` | 6 індексів: composite, partial, expression, GIN по tsvector, btree під `seller_id` і `product_id` |
-| `db/OPTIMIZATIONS.md` | 6 пар EXPLAIN до/після, розбір планів, секція «Морфологія» |
+| `db/queries/q1..q6.sql` | buyer orders in a period · unpaid queue · case-insensitive email login · catalog search · seller catalog · order lines by product |
+| `db/indexes.sql` | 6 indexes: composite, partial, expression, GIN on tsvector, btree on `seller_id` and `product_id` |
+| `db/OPTIMIZATIONS.md` | 6 before/after EXPLAIN pairs, plan walkthroughs, Morphology section |
 
-Прискорення — від ×12 до ×132; деталі й повні плани у звіті.
+Speedup ranges from ×12 to ×132; details and full plans are in the report.
+
+## HW#13 — TypeORM: entities, migrations, N+1
+
+The live schema no longer comes from `db/schema.sql`. The migration
+`src/migrations/1790008327952-InitSchema.ts` creates it (`synchronize: false`).
+Money in `price` / `total` / `unit_price` is **integer cents**.
+
+### onDelete
+
+| Relation | Strategy | Why |
+| --- | --- | --- |
+| `order_items.order_id → orders` | **CASCADE** | a cart line has no meaning without its order |
+| `products.seller_id → users` | **RESTRICT** | a seller catalog is history; it does not vanish with the account |
+| `orders.buyer_id → users` | **RESTRICT** | same for a buyer's orders |
+| `order_items.product_id → products` | **RESTRICT** | a sold product cannot be deleted: `unit_price` is a snapshot, not a live pointer |
+
+`Order ↔ Product` is M:N with data on the link (`quantity`, `unit_price`), so it
+is an explicit join entity `OrderItem`, not `@ManyToMany`.
+
+### Repository vs QueryBuilder
+
+`find()` / `save()` — when the result is an entity graph: order CRUD with lines,
+a seller catalog. QueryBuilder — when the result is **not** an entity: an
+aggregate, `GROUP BY`, a report. `npm run report` totals revenue by product
+(`SUM(quantity * unit_price)`); `find()` cannot express that.
+
+### N+1 (graph `order → items → product`, 10 orders × 2 lines)
+
+| Strategy | Queries |
+| --- | --- |
+| naive (query in a loop) | **31** = 1 list + 10 × items + 20 × product |
+| `relations` / `leftJoinAndSelect` | **1** |
+| `relationLoadStrategy: 'query'` | **5** = 1 + 2 × 2 levels |
+
+31 grows with N; 1 and 5 are constants. Full SQL log: `npm run demo:nplus1`.
+
+### Seed
+
+Idempotent: a second run sees the same 5 users / 6 products / 10 orders /
+20 order_items and exits. Check:
+
+```bash
+docker compose exec -T db psql -U admin -d marketplace -c \
+  "SELECT 'users' t, count(*) FROM users UNION ALL SELECT 'products', count(*) FROM products UNION ALL SELECT 'orders', count(*) FROM orders UNION ALL SELECT 'order_items', count(*) FROM order_items;"
+```
+
+### Commands
+
+```bash
+docker compose up -d --wait
+npm ci
+npx tsc --noEmit
+npm run build
+npm run migrate
+npm run migrate:show
+npm run seed
+npm run demo:nplus1
+npm run report
+```
+
+`migrate`, `seed`, `demo:nplus1`, and `report` are wrapped in
+`scripts/with-secrets.sh`. Locally, from the HW#11 store — no `SKIP_VAULT`. The
+grader uses the section below.
+
+## Grading
+
+```bash
+docker compose up -d --wait
+export DB_HOST=127.0.0.1 DB_PORT=5433 DB_USER=admin DB_PASSWORD=admin-bootstrap-only DB_NAME=marketplace
+export SKIP_VAULT=1    # grader has no access to the store
+
+npm ci
+npx tsc --noEmit
+npm run build
+npm run migrate
+npm run migrate:show
+npm run migrate:revert
+npm run migrate
+npm run seed && npm run seed
+npm run demo:nplus1
+npm run report
+```
+
+Stand credentials are `admin` / `admin-bootstrap-only` / `marketplace` / host
+port **5433** from `docker-compose.yml`. That is not a store secret: the
+container is thrown away with `down -v`.
 
 ## HW#9
 
-Варіант Б.
+Variant B.
 
 ```bash
 npm install
@@ -185,9 +275,9 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
 node -e "const s=require('./spec.json'),M=['get','post','put','patch','delete'];\
 const ops=Object.entries(s.paths).flatMap(([p,v])=>Object.keys(v).filter(m=>M.includes(m)).map(m=>[p,m]));\
 const idem=ops.flatMap(([p,m])=>s.paths[p][m].parameters??[]).find(x=>x.in==='header'&&/idempotency-key/i.test(x.name));\
-console.log('операцій:',ops.length,'· ресурсів:',new Set(Object.keys(s.paths).map(p=>p.split('/')[1])).size);\
-console.log('Idempotency-Key: required =',idem?.required,'· опис, символів =',(idem?.description??'').trim().length)"
-# очікуємо: операцій ≥ 5 · ресурсів ≥ 2 · required = true · опис ≥ 40 символів
+console.log('operations:',ops.length,'· resources:',new Set(Object.keys(s.paths).map(p=>p.split('/')[1])).size);\
+console.log('Idempotency-Key: required =',idem?.required,'· description chars =',(idem?.description??'').trim().length)"
+# expected: operations ≥ 5 · resources ≥ 2 · required = true · description ≥ 40 chars
 
 grep -c 'Idempotency-Key' openapi/openapi.yaml
 grep -c 'next_cursor' openapi/openapi.yaml
