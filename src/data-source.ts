@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { join } from 'node:path';
 import { DataSource } from 'typeorm';
+import { Job } from './entities/job';
 import { Order } from './entities/order';
 import { OrderItem } from './entities/order-item';
 import { Product } from './entities/product';
@@ -21,8 +22,9 @@ export default new DataSource({
   username: required('DB_USER'),
   password: process.env.DB_PASSWORD ?? '',
   database: required('DB_NAME'),
-  entities: [User, Product, Order, OrderItem],
+  entities: [User, Product, Order, OrderItem, Job],
   migrations: [join(__dirname, 'migrations', '*.js')],
   synchronize: false,
   logging: false,
+  extra: { max: 50 },
 });
