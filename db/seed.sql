@@ -1,4 +1,5 @@
 -- Realistic volume, deliberately skewed. Run after db/schema.sql.
+-- Money columns are integer cents (same as schema.sql / TypeORM).
 --
 -- Volumes: 50 000 users, 120 000 products, 120 000 orders, 240 000 order items.
 -- A thousand-row table teaches nothing about indexes: a sequential scan really
@@ -33,7 +34,7 @@ SELECT
   p.noun || ' ' || p.adj || ', модель ' || (1000 + (i % 9000)),
   'Якісні ' || p.noun || ' від перевіреного продавця в категорії ' || p.cat
     || '. Доставка по Україні, гарантія 12 місяців. Артикул ' || i || '.',
-  round((199 + (i % 9000) / 3.0)::numeric, 2),
+  ((199 + (i % 9000) / 3) * 100)::integer,
   i % 37,
   '2025-01-01'::timestamptz + ((i % 620) || ' days')::interval
                             + ((i % 86400) || ' seconds')::interval
@@ -67,7 +68,7 @@ SELECT
     WHEN i % 100 < 98 THEN 'cancelled'
     ELSE 'new'
   END,
-  round((150 + (i % 12000) / 4.0)::numeric, 2),
+  ((150 + (i % 12000) / 4) * 100)::integer,
   '2025-04-01'::timestamptz + ((i % 550) || ' days')::interval
                             + ((i % 86400) || ' seconds')::interval
 FROM generate_series(1, 120000) AS i;
@@ -78,7 +79,7 @@ SELECT
   o,
   ((o * 7 + k * 54321) % 120000) + 1,
   1 + (o % 3),
-  round((199 + ((o * 11) % 9000) / 3.0)::numeric, 2)
+  ((199 + ((o * 11) % 9000) / 3) * 100)::integer
 FROM generate_series(1, 120000) AS o
 CROSS JOIN generate_series(0, 1) AS k;
 

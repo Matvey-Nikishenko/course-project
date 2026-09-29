@@ -11,3 +11,4 @@ spec.json
 # these are not.
 .env
 secrets/
+.secrets/
