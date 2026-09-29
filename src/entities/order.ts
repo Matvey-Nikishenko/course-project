@@ -1,7 +1,6 @@
 import {
   Check,
   Column,
-  CreateDateColumn,
   Entity,
   Index,
   JoinColumn,
@@ -34,7 +33,9 @@ export class Order {
   @Column({ type: 'int' })
   total!: number;
 
-  @CreateDateColumn({ type: 'timestamptz', name: 'created_at' })
+  // Regular column (not CreateDateColumn) so seed can set a frozen created_at
+  // that is the order's natural key: (buyer, created_at).
+  @Column({ type: 'timestamptz', name: 'created_at', default: () => 'now()' })
   createdAt!: Date;
 
   @OneToMany(() => OrderItem, (item) => item.order, { cascade: true })

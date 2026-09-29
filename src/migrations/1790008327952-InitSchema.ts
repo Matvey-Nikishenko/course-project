@@ -20,9 +20,34 @@ export class InitSchema1790008327952 implements MigrationInterface {
         await queryRunner.query(`ALTER TABLE "orders" ADD CONSTRAINT "FK_5e90e93d0e036c3fadbaefa4d0a" FOREIGN KEY ("buyer_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
         await queryRunner.query(`CREATE INDEX "idx_users_email_lower" ON "users" (lower(email))`);
         await queryRunner.query(`CREATE INDEX "idx_products_search_vector" ON "products" USING GIN ("search_vector")`);
+        // Nest connects as app_user (db/init.sql). Without this, SET ROLE app_user;
+        // SELECT count(*) FROM products → permission denied. Guarded: a Postgres
+        // that never created the role still applies the rest of the migration.
+        await queryRunner.query(`
+            DO $$
+            BEGIN
+              IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
+                GRANT USAGE ON SCHEMA public TO app_user;
+                GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_user;
+                GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_user;
+              END IF;
+            END
+            $$;
+        `);
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`
+            DO $$
+            BEGIN
+              IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user') THEN
+                REVOKE SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public FROM app_user;
+                REVOKE USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public FROM app_user;
+                REVOKE USAGE ON SCHEMA public FROM app_user;
+              END IF;
+            END
+            $$;
+        `);
         await queryRunner.query(`DROP INDEX "public"."idx_products_search_vector"`);
         await queryRunner.query(`DROP INDEX "public"."idx_users_email_lower"`);
         await queryRunner.query(`ALTER TABLE "orders" DROP CONSTRAINT "FK_5e90e93d0e036c3fadbaefa4d0a"`);

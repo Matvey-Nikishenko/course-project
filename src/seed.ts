@@ -60,6 +60,29 @@ const CATALOG: { name: string; description: string; price: number; stock: number
   },
 ];
 
+// Natural key of a seed order: (buyer email, created_at). Frozen timestamps so
+// a second run finds the row instead of counting ">= 10" and inserting again
+// after someone deletes a single order.
+const SEED_ORDERS = Array.from({ length: 10 }, (_, i) => ({
+  buyerEmail: BUYERS[i % BUYERS.length].email,
+  status: i % 5 === 0 ? ('new' as const) : ('paid' as const),
+  createdAt: new Date(Date.UTC(2026, 0, 15, 12, 0, i)),
+  lines: [
+    { productName: CATALOG[i % CATALOG.length].name, quantity: (i % 3) + 1 },
+    { productName: CATALOG[(i + 2) % CATALOG.length].name, quantity: 1 },
+  ],
+}));
+
+async function counts(ds: typeof dataSource): Promise<string> {
+  const [users, products, orders, items] = await Promise.all([
+    ds.getRepository(User).count(),
+    ds.getRepository(Product).count(),
+    ds.getRepository(Order).count(),
+    ds.getRepository(OrderItem).count(),
+  ]);
+  return `users=${users} products=${products} orders=${orders} order_items=${items}`;
+}
+
 async function main(): Promise<void> {
   const ds = dataSource;
   await ds.initialize();
@@ -97,54 +120,37 @@ async function main(): Promise<void> {
     productsByName.set(row.name, product);
   }
 
-  const productList = [...productsByName.values()];
-  const buyers = BUYERS.map((row) => usersByEmail.get(row.email)!);
+  for (const spec of SEED_ORDERS) {
+    const buyer = usersByEmail.get(spec.buyerEmail)!;
+    const existing = await orderRepo
+      .createQueryBuilder('o')
+      .innerJoin('o.buyer', 'b')
+      .where('b.email = :email', { email: spec.buyerEmail })
+      .andWhere('o.created_at = :createdAt', { createdAt: spec.createdAt })
+      .getOne();
+    if (existing) {
+      continue;
+    }
 
-  const seededOrders = await orderRepo
-    .createQueryBuilder('o')
-    .innerJoin('o.buyer', 'b')
-    .where('b.email IN (:...emails)', { emails: BUYERS.map((b) => b.email) })
-    .getCount();
-  if (seededOrders >= 10) {
-    const [users, products, orders, items] = await Promise.all([
-      userRepo.count(),
-      productRepo.count(),
-      orderRepo.count(),
-      ds.getRepository(OrderItem).count(),
-    ]);
-    console.log(`seed already applied  users=${users} products=${products} orders=${orders} order_items=${items}`);
-    await ds.destroy();
-    return;
-  }
-
-  for (let i = 0; i < 10; i++) {
-    const a = productList[i % productList.length];
-    const b = productList[(i + 2) % productList.length];
-    const itemA = new OrderItem();
-    itemA.product = a;
-    itemA.quantity = (i % 3) + 1;
-    itemA.unitPrice = a.price;
-    const itemB = new OrderItem();
-    itemB.product = b;
-    itemB.quantity = 1;
-    itemB.unitPrice = b.price;
+    const items = spec.lines.map((line) => {
+      const product = productsByName.get(line.productName)!;
+      const item = new OrderItem();
+      item.product = product;
+      item.quantity = line.quantity;
+      item.unitPrice = product.price;
+      return item;
+    });
 
     const order = new Order();
-    order.buyer = buyers[i % buyers.length];
-    order.status = i % 5 === 0 ? 'new' : 'paid';
-    order.total = itemA.quantity * itemA.unitPrice + itemB.quantity * itemB.unitPrice;
-    order.items = [itemA, itemB];
+    order.buyer = buyer;
+    order.status = spec.status;
+    order.createdAt = spec.createdAt;
+    order.items = items;
+    order.total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     await orderRepo.save(order);
   }
 
-  const [users, products, orders, items] = await Promise.all([
-    userRepo.count(),
-    productRepo.count(),
-    orderRepo.count(),
-    ds.getRepository(OrderItem).count(),
-  ]);
-  console.log(`seed ok  users=${users} products=${products} orders=${orders} order_items=${items}`);
-
+  console.log(`seed ok  ${await counts(ds)}`);
   await ds.destroy();
 }
 

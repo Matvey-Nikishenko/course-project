@@ -23,10 +23,10 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | 2026-09-07 | Idempotency keys expire after 24h | An unbounded in-process map is a leak; an external store with native TTL comes with HW#14. |
 | 2026-09-08 | Env validated by one zod schema at startup | A broken variable has to kill the process with a named cause, not surface on the first request in production. |
 | 2026-09-08 | DB password in a file, not in `DB_URL` | The environment of a running process is a snapshot taken at exec, so an env variable cannot be rotated without a restart. |
-| 2026-09-15 | Money is `numeric(12,2)` in the database | Float cannot hold `0.01`, and a debit that drifts is a lost invoice. The HW#9 HTTP contract keeps integer cents, so the two representations do not match yet — reconciling them belongs to the mapping layer of HW#13, not here. |
+| 2026-09-15 | Money is integer cents in the database | Float cannot hold `0.01`. The HTTP contract, TypeORM columns, `db/schema.sql`, and the migration all use `integer` cents — not `numeric(12,2)`. |
 | 2026-09-15 | Keys are `GENERATED ALWAYS AS IDENTITY`, not `serial` | The sequence belongs to the column, an explicit INSERT cannot desynchronise it, and writing the id is not a privilege handed out with the table. |
 | 2026-09-15 | Catalog search stays on `simple` FTS config | This Postgres ships 29 configurations and none is Ukrainian, so search matches exact word forms only. Named as a documented limitation in `db/OPTIMIZATIONS.md`; substituting `russian` would guess Ukrainian endings by foreign rules and hide the problem instead of fixing it. |
-| 2026-09-21 | Money in the ORM schema is integer cents | HW#13 forbids float. The HTTP contract already uses cents; the mapping layer is the TypeORM column type `int`, not `numeric(12,2)`. `db/schema.sql` stays the HW#12 snapshot — live schema from here on is the migration. |
+| 2026-09-28 | Migration grants `app_user`; `schema.sql` matches live types | `app_user` is how the HTTP process connects. GRANT lived only in `db/schema.sql`, so `migrate` left `SET ROLE app_user; SELECT …` denied. The same GRANT is now in `InitSchema`, and `schema.sql` uses integer cents so it is not a second, stale schema. |
 
 ## Configuration
 
@@ -167,7 +167,7 @@ done
 
 | File | Contents |
 | --- | --- |
-| `db/schema.sql` | 4 tables, 4 FOREIGN KEYs, `numeric`/`timestamptz`, CHECK, generated `tsvector` column |
+| `db/schema.sql` | 4 tables, 4 FOREIGN KEYs, integer cents/`timestamptz`, CHECK, generated `tsvector` column, GRANT `app_user` |
 | `db/seed.sql` | 50 000 users, 120 000 products, 120 000 orders, 240 000 order_items + `VACUUM (ANALYZE)` |
 | `db/queries/q1..q6.sql` | buyer orders in a period · unpaid queue · case-insensitive email login · catalog search · seller catalog · order lines by product |
 | `db/indexes.sql` | 6 indexes: composite, partial, expression, GIN on tsvector, btree on `seller_id` and `product_id` |
@@ -177,8 +177,9 @@ Speedup ranges from ×12 to ×132; details and full plans are in the report.
 
 ## HW#13 — TypeORM: entities, migrations, N+1
 
-The live schema no longer comes from `db/schema.sql`. The migration
-`src/migrations/1790008327952-InitSchema.ts` creates it (`synchronize: false`).
+The running app creates the schema with
+`src/migrations/1790008327952-InitSchema.ts` (`synchronize: false`).
+`db/schema.sql` is the SQL twin of that schema (integer cents, GRANT `app_user`).
 Money in `price` / `total` / `unit_price` is **integer cents**.
 
 ### onDelete
@@ -212,8 +213,11 @@ aggregate, `GROUP BY`, a report. `npm run report` totals revenue by product
 
 ### Seed
 
-Idempotent: a second run sees the same 5 users / 6 products / 10 orders /
-20 order_items and exits. Check:
+Idempotent by **natural key**, not a row-count threshold: users by `email`,
+products by `(seller, name)`, orders by `(buyer email, created_at)` with frozen
+timestamps. Deleting one order and running seed again inserts only that order.
+A second run on an intact DB stays at 5 users / 6 products / 10 orders /
+20 order_items. Check:
 
 ```bash
 docker compose exec -T db psql -U admin -d marketplace -c \
