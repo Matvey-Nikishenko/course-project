@@ -16,7 +16,7 @@ container. A second run on the same dump also printed `MATCH`.
 | **RTO** | **3 seconds** — measured wall-clock of the drill: empty container + `pg_restore --no-owner` + checksum. This dump is the migrated+seeded course DB (90 orders), not the 120 000-row HW#12 load. |
 | **RPO** | **24 hours** — `backup.cron` runs `scripts/backup.sh` once a night (`0 3 * * *`). A crash just before 03:00 can lose up to a full day of writes. |
 
-Commands used (same as ## Grading):
+Commands used:
 
 ```bash
 docker compose up -d --wait

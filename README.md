@@ -344,7 +344,7 @@ npm run demo:workers
 npm run demo:retry
 
 export DATABASE_URL=postgres://admin:admin-bootstrap-only@127.0.0.1:6432/marketplace
-export SKIP_VAULT=1    # у грейдера немає доступу до сховища
+export SKIP_VAULT=1
 bash scripts/with-secrets.sh dev bash scripts/backup.sh
 bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
 ```
