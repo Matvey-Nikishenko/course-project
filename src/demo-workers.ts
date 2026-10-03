@@ -11,7 +11,7 @@ async function main(): Promise<void> {
   const jobRepo = dataSource.getRepository(Job);
 
   const queued = Array.from({ length: JOBS }, (_, i) =>
-    jobRepo.create({ kind: KIND, payload: { n: i }, processed: 0 }),
+    jobRepo.create({ kind: KIND, payload: { n: i }, processed: 0, attempts: 0 }),
   );
   await jobRepo.save(queued);
 

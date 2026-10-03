@@ -2,13 +2,16 @@ import { DataSource } from 'typeorm';
 import { Job } from './entities/job';
 import { Order } from './entities/order';
 import { OrderItem } from './entities/order-item';
+import { Product } from './entities/product';
 
 export class CheckoutRejected extends Error {
-  constructor(readonly code: 'out_of_stock' | 'insufficient_funds') {
+  constructor(readonly code: 'out_of_stock' | 'insufficient_funds' | 'unknown_product') {
     super(code);
     this.name = 'CheckoutRejected';
   }
 }
+
+export type CheckoutLine = { productId: string; quantity: number };
 
 /** TypeORM/pg sometimes returns rows, sometimes [rows, rowCount]. */
 function returningRows<T extends Record<string, unknown>>(raw: unknown): T[] {
@@ -20,26 +23,31 @@ function returningRows<T extends Record<string, unknown>>(raw: unknown): T[] {
 
 export async function checkout(
   ds: DataSource,
-  input: { buyerId: string; productId: string; quantity: number },
+  input: { buyerId: string; items: CheckoutLine[] },
 ): Promise<{ orderId: string }> {
-  if (input.quantity < 1) {
-    throw new Error('quantity must be >= 1');
+  if (input.items.length < 1 || input.items.some((item) => item.quantity < 1)) {
+    throw new Error('checkout needs at least one line with quantity >= 1');
   }
 
   return ds.transaction(async (manager) => {
-    // Atomic decrement: the WHERE clause is the lock and the oversell check.
-    const stockRows = returningRows<{ id: string; price: string | number }>(
-      await manager.query(
-        `UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING id, price`,
-        [input.quantity, input.productId],
-      ),
-    );
-    if (stockRows.length === 0) {
-      throw new CheckoutRejected('out_of_stock');
-    }
+    const lines: { productId: string; quantity: number; unitPrice: number }[] = [];
+    let total = 0;
 
-    const unitPrice = Number(stockRows[0].price);
-    const total = unitPrice * input.quantity;
+    for (const item of input.items) {
+      const stockRows = returningRows<{ id: string; price: string | number }>(
+        await manager.query(
+          `UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1 RETURNING id, price`,
+          [item.quantity, item.productId],
+        ),
+      );
+      if (stockRows.length === 0) {
+        const exists = await manager.findOne(Product, { where: { id: item.productId } });
+        throw new CheckoutRejected(exists ? 'out_of_stock' : 'unknown_product');
+      }
+      const unitPrice = Number(stockRows[0].price);
+      total += unitPrice * item.quantity;
+      lines.push({ productId: item.productId, quantity: item.quantity, unitPrice });
+    }
 
     const payRows = returningRows<{ id: string }>(
       await manager.query(
@@ -55,13 +63,13 @@ export async function checkout(
       buyer: { id: input.buyerId },
       status: 'paid',
       total,
-      items: [
+      items: lines.map((line) =>
         manager.create(OrderItem, {
-          product: { id: input.productId },
-          quantity: input.quantity,
-          unitPrice,
+          product: { id: line.productId },
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
         }),
-      ],
+      ),
     });
     const saved = await manager.save(order);
 
@@ -70,6 +78,7 @@ export async function checkout(
         kind: 'receipt',
         payload: { orderId: saved.id },
         processed: 0,
+        attempts: 0,
       }),
     );
 

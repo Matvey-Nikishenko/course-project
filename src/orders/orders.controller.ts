@@ -20,8 +20,8 @@ export class OrdersController {
 
   @Post()
   @HttpCode(201)
-  create(@Body() dto: CreateOrderDto, @Res({ passthrough: true }) res: Response) {
-    const order = this.ordersService.create(dto.items);
+  async create(@Body() dto: CreateOrderDto, @Res({ passthrough: true }) res: Response) {
+    const order = await this.ordersService.create(dto.items);
     res.setHeader('Location', `/orders/${order.id}`);
     return order;
   }

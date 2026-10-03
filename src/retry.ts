@@ -12,18 +12,21 @@ function isRetryable(err: unknown): boolean {
 export async function withSerializationRetry<T>(
   fn: () => Promise<T>,
   options: { maxAttempts?: number; label?: string } = {},
-): Promise<T> {
+): Promise<{ result: T; retries: number }> {
   const maxAttempts = options.maxAttempts ?? 8;
   const label = options.label ?? 'tx';
   let last: unknown;
+  let retries = 0;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      return await fn();
+      const result = await fn();
+      return { result, retries };
     } catch (err) {
       last = err;
       if (!isRetryable(err) || attempt === maxAttempts) {
         throw err;
       }
+      retries += 1;
       const backoffMs = 10 * 2 ** (attempt - 1);
       console.log(
         `retry ${label}: caught ${pgErrorCode(err)} attempt ${attempt}/${maxAttempts}, backoff ${backoffMs}ms`,

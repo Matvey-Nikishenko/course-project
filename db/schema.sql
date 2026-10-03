@@ -54,7 +54,17 @@ CREATE TABLE order_items (
   UNIQUE (order_id, product_id)
 );
 
-CREATE INDEX idx_jobs_pending ON jobs (id) WHERE processed = 0;
+CREATE TABLE jobs (
+  id         bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  kind       text        NOT NULL,
+  payload    jsonb       NOT NULL DEFAULT '{}',
+  processed  integer     NOT NULL DEFAULT 0 CHECK (processed >= 0),
+  attempts   integer     NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+  worker_id  text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_jobs_pending ON jobs (id) WHERE processed = 0 AND attempts < 5;
 
 -- The application connects as app_user (created by db/init.sql when the
 -- container initialises its volume). Guarded so the schema also applies to a

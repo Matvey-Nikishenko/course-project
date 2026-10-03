@@ -35,20 +35,11 @@ async function main(): Promise<void> {
   user.balanceCents = START;
   await userRepo.save(user);
 
-  let retries = 0;
-  const originalLog = console.log;
-  console.log = (...args: unknown[]) => {
-    const line = args.map(String).join(' ');
-    if (/40001|40P01/.test(line)) retries += 1;
-    originalLog.apply(console, args);
-  };
-
-  await Promise.all([
+  const [a, b] = await Promise.all([
     withSerializationRetry(() => bumpBalance(), { label: 'rmw-a' }),
     withSerializationRetry(() => bumpBalance(), { label: 'rmw-b' }),
   ]);
-
-  console.log = originalLog;
+  const retries = a.retries + b.retries;
 
   const [{ balance_cents }] = await dataSource.query<{ balance_cents: number }[]>(
     `SELECT balance_cents FROM users WHERE email = $1`,

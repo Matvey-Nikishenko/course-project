@@ -37,7 +37,10 @@ async function main(): Promise<void> {
 
   const results = await Promise.all(
     Array.from({ length: ATTEMPTS }, () =>
-      checkout(dataSource, { buyerId: buyer.id, productId: product!.id, quantity: QTY })
+      checkout(dataSource, {
+        buyerId: buyer.id,
+        items: [{ productId: product!.id, quantity: QTY }],
+      })
         .then(() => 'ok' as const)
         .catch((err: unknown) => {
           if (err instanceof CheckoutRejected) return err.code;

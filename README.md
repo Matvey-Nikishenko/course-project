@@ -258,6 +258,16 @@ Retry wraps only PostgreSQL `40001` (serialization_failure) and `40P01`
 (deadlock_detected). Unique violations, check failures, and `CheckoutRejected`
 are not transient — repeating them would duplicate a successful debit or hide a
 real bug. The retry replays the **whole** transaction, including the SELECT.
+`withSerializationRetry` returns `{ result, retries }` — the demo does not parse
+logs to count repeats.
+
+`POST /orders` calls the same `checkout()`. Catalog and order GET/list read
+TypeORM so `product_id` in the body is a live row. The HTTP buyer is the seed
+account `buyer-kateryna@example.com` until auth lands.
+
+A job that throws during processing increments `jobs.attempts` in a follow-up
+statement (the failed tx already rolled back). Workers claim
+`processed = 0 AND attempts < 5`, so a poison message is not retried forever.
 
 ### Measured runs
 

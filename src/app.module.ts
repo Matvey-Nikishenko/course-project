@@ -6,6 +6,7 @@ import { HealthModule } from './health/health.module';
 import { OrdersModule } from './orders/orders.module';
 import { ProductsModule } from './products/products.module';
 import { StoreModule } from './store/store.module';
+import { TypeormModule } from './typeorm/typeorm.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { StoreModule } from './store/store.module';
     StoreModule,
     ProductsModule,
     OrdersModule,
+    TypeormModule,
   ],
 })
 export class AppModule {}
