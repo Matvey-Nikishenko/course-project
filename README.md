@@ -27,6 +27,7 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | 2026-09-15 | Keys are `GENERATED ALWAYS AS IDENTITY`, not `serial` | The sequence belongs to the column, an explicit INSERT cannot desynchronise it, and writing the id is not a privilege handed out with the table. |
 | 2026-09-15 | Catalog search stays on `simple` FTS config | This Postgres ships 29 configurations and none is Ukrainian, so search matches exact word forms only. Named as a documented limitation in `db/OPTIMIZATIONS.md`; substituting `russian` would guess Ukrainian endings by foreign rules and hide the problem instead of fixing it. |
 | 2026-09-28 | Migration grants `app_user`; `schema.sql` matches live types | `app_user` is how the HTTP process connects. GRANT lived only in `db/schema.sql`, so `migrate` left `SET ROLE app_user; SELECT …` denied. The same GRANT is now in `InitSchema`, and `schema.sql` uses integer cents so it is not a second, stale schema. |
+| 2026-09-29 | Checkout uses atomic `UPDATE … RETURNING`, not JS read-modify-write | `WHERE stock >= $n` is the oversell check and the row lock. A second statement cannot steal units between read and write because there is no separate read. |
 
 ## Configuration
 
@@ -238,9 +239,45 @@ npm run demo:nplus1
 npm run report
 ```
 
-`migrate`, `seed`, `demo:nplus1`, and `report` are wrapped in
-`scripts/with-secrets.sh`. Locally, from the HW#11 store — no `SKIP_VAULT`. The
-grader uses the section below.
+`migrate`, `seed`, `demo:nplus1`, `report`, `demo:race`, `demo:workers`, and
+`demo:retry` are wrapped in `scripts/with-secrets.sh`. Locally, from the HW#11
+store — no `SKIP_VAULT`. The grader uses the section below.
+
+## HW#14 — concurrency: checkout, SKIP LOCKED, retry
+
+Checkout runs in **one transaction** on one pool client: decrement stock, debit
+the buyer, insert the order, enqueue a `receipt` job. Stock is an atomic
+`UPDATE … SET stock = stock - $n WHERE stock >= $n RETURNING`. Zero rows means
+oversell is refused and the whole transaction rolls back — no orphan orders.
+That UPDATE is both the check and the lock, so there is no read-modify-write
+window in JS. `SELECT … FOR UPDATE` would also serialize, but it is an extra
+round-trip; the assignment's race is decided by stock, and RETURNING answers it
+in one statement.
+
+Retry wraps only PostgreSQL `40001` (serialization_failure) and `40P01`
+(deadlock_detected). Unique violations, check failures, and `CheckoutRejected`
+are not transient — repeating them would duplicate a successful debit or hide a
+real bug. The retry replays the **whole** transaction, including the SELECT.
+`withSerializationRetry` returns `{ result, retries }` — the demo does not parse
+logs to count repeats.
+
+`POST /orders` calls the same `checkout()`. Catalog and order GET/list read
+TypeORM so `product_id` in the body is a live row. The HTTP buyer is the seed
+account `buyer-kateryna@example.com` until auth lands.
+
+A job that throws during processing increments `jobs.attempts` in a follow-up
+statement (the failed tx already rolled back). Workers claim
+`processed = 0 AND attempts < 5`, so a poison message is not retried forever.
+
+### Measured runs
+
+| Demo | Result |
+| --- | --- |
+| `demo:race` | 50 attempts, **10** succeeded, stock **0**, negative rows **0** |
+| `demo:workers` | 3 workers, **w1=8 w2=8 w3=8**, processed twice **0**, **424 ms** vs sequential 24 × 40 = **960 ms** |
+| `demo:retry` | at least one `40001`, final `balance_cents = start + 2` |
+
+Re-run the three scripts after migrate+seed to refresh the numbers if they drift.
 
 ## Grading
 
@@ -259,6 +296,9 @@ npm run migrate
 npm run seed && npm run seed
 npm run demo:nplus1
 npm run report
+npm run demo:race
+npm run demo:workers
+npm run demo:retry
 ```
 
 Stand credentials are `admin` / `admin-bootstrap-only` / `marketplace` / host

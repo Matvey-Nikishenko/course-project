@@ -95,7 +95,10 @@ async function main(): Promise<void> {
   for (const row of [...SELLERS, ...BUYERS]) {
     let user = await userRepo.findOne({ where: { email: row.email } });
     if (!user) {
-      user = await userRepo.save(userRepo.create(row));
+      user = await userRepo.save(userRepo.create({ ...row, balanceCents: 100_000_000 }));
+    } else if (user.balanceCents < 100_000_000) {
+      user.balanceCents = 100_000_000;
+      await userRepo.save(user);
     }
     usersByEmail.set(row.email, user);
   }
