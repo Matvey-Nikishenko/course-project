@@ -29,5 +29,8 @@ echo "3. Closing existing ${DB_ROLE} connections..."
 docker compose exec -T db psql -U admin -d marketplace -tA \
   -c "SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE usename = '${DB_ROLE}';"
 
+echo "4. Reloading PgBouncer userlist with the new password..."
+docker compose restart pgbouncer >/dev/null
+
 echo "Done: the new ${DB_ROLE} password is in both the database and the file."
 echo "The API was not restarted — check: curl -s localhost:${PORT:-3000}/health/db"
