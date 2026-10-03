@@ -28,6 +28,7 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | 2026-09-15 | Catalog search stays on `simple` FTS config | This Postgres ships 29 configurations and none is Ukrainian, so search matches exact word forms only. Named as a documented limitation in `db/OPTIMIZATIONS.md`; substituting `russian` would guess Ukrainian endings by foreign rules and hide the problem instead of fixing it. |
 | 2026-09-28 | Migration grants `app_user`; `schema.sql` matches live types | `app_user` is how the HTTP process connects. GRANT lived only in `db/schema.sql`, so `migrate` left `SET ROLE app_user; SELECT …` denied. The same GRANT is now in `InitSchema`, and `schema.sql` uses integer cents so it is not a second, stale schema. |
 | 2026-09-29 | Checkout uses atomic `UPDATE … RETURNING`, not JS read-modify-write | `WHERE stock >= $n` is the oversell check and the row lock. A second statement cannot steal units between read and write because there is no separate read. |
+| 2026-10-03 | App reaches Postgres through PgBouncer in transaction mode | A small server pool (8) can cover many API clients (200). Session-scoped features do not survive; named prepares need `max_prepared_statements`. |
 
 ## Configuration
 
@@ -48,11 +49,12 @@ build context.
 | --- | --- | --- | --- | --- |
 | `PORT` | no | `3000` | `.env` | HTTP port of the API. |
 | `LOG_LEVEL` | no | `info` | `.env` | `debug` \| `info` \| `warn` \| `error`. |
-| `DB_URL` | **yes** | — | **secret storage from HW#11** — `.env` locally, mounted secret in prod; never a new env file | Postgres descriptor of the HW#12 database, e.g. `postgres://app_user@127.0.0.1:5433/marketplace`. Must not contain a password: the schema rejects one. |
+| `DB_URL` | **yes** | — | **secret storage from HW#11** — `.env` locally, mounted secret in prod; never a new env file | Descriptor of the HW#12 database **through PgBouncer**, e.g. `postgres://app_user@127.0.0.1:6432/marketplace`. Must not contain a password: the schema rejects one. |
+| `DATABASE_URL` | **yes** (backup / restore-drill) | — | **HW#11 store** — not in `.env.example` (that file is the Nest contract) | Full URL with password for `scripts/backup.sh` and `scripts/restore-drill.sh`. Dev value is the compose admin user on **:6432**. |
 | `DB_PASSWORD_FILE` | no | `secrets/db_password` | **secret storage from HW#11** — file path, the value itself is never in git | File holding the database password, read on every new pool connection. |
 | `DB_POOL_MAX` | no | `5` | `.env` | Maximum connections in the pg pool. |
 | `DB_HOST` | **yes** (TypeORM CLI) | — | **HW#11 store** | Postgres host for `data-source.ts`. |
-| `DB_PORT` | no | `5432` | **HW#11 store** | Port. This stand uses **5433** in compose. |
+| `DB_PORT` | no | `5432` | **HW#11 store** | Port. The app and scripts use **6432** (PgBouncer). Direct Postgres stays on **5433** for admin/rotate. |
 | `DB_USER` | **yes** (TypeORM CLI) | — | **HW#11 store** | Role. The grader uses `admin` from compose. |
 | `DB_PASSWORD` | no | empty string | **HW#11 store** | Password. No literal in `data-source.ts`. |
 | `DB_NAME` | **yes** (TypeORM CLI) | — | **HW#11 store** | Database. Here: `marketplace`. |
@@ -68,7 +70,7 @@ without the store (`SKIP_VAULT=1` in ## Grading).
 ```bash
 npm install
 cp .env.example .env      # then edit values if needed
-npm run db:up             # Postgres on :5433 + seed secrets/db_password
+npm run db:up             # Postgres on :5433, PgBouncer on :6432 + seed secrets/db_password
 npm start                 # builds, then runs dist/main.js on :3000
 
 curl -s localhost:3000/health          # {"status":"ok","uptime_sec":...}
@@ -83,7 +85,7 @@ The container image never carries secrets:
 ```bash
 docker build -t myapp .
 docker run --rm -p 3000:3000 \
-  -e DB_URL=postgres://app_user@host.docker.internal:5433/marketplace \
+  -e DB_URL=postgres://app_user@host.docker.internal:6432/marketplace \
   -v "$PWD/secrets/db_password:/run/secrets/db_password:ro" \
   -e DB_PASSWORD_FILE=/run/secrets/db_password \
   myapp
@@ -279,11 +281,52 @@ statement (the failed tx already rolled back). Workers claim
 
 Re-run the three scripts after migrate+seed to refresh the numbers if they drift.
 
+## Data layer ops
+
+The HTTP process and every script that needs a SQL session go through
+**PgBouncer** on host port **6432**, not the raw Postgres **5433**. Compose
+publishes both: 5433 is left for `rotate.sh` and `psql` when you need a
+session that transaction pooling would strip.
+
+`pool_mode = transaction` is the default for a stateless API. A client is
+bound to a server connection only for the duration of one transaction, so
+`default_pool_size = 8` can serve `max_client_conn = 200` HTTP workers. Session
+mode would pin a backend for the whole client lifetime and waste the pool the
+moment you scale replicas (HW#28).
+
+Transaction mode drops session state between transactions. Three things it
+breaks, all from the lecture:
+
+1. **Named prepared statements** — Postgres stores them on the session; the
+   next transaction may land on a different backend. Mitigated here with
+   `max_prepared_statements = 200` (PgBouncer ≥ 1.21).
+2. **`LISTEN` / `NOTIFY`** — the listener is session-scoped; a pooled
+   connection forgets subscriptions when it is returned.
+3. **Temporary tables and session `SET`** — `CREATE TEMP TABLE`,
+   `SET search_path`, advisory session locks: gone at `COMMIT`/`ROLLBACK`.
+
+Backup and restore stay on the same `DATABASE_URL` the HW#11 wrapper injects
+(no new env file). Local destination is `./backups/` (git-ignored), one
+custom-format (`pg_dump -Fc`) file per night, name stamped with the date.
+
+```bash
+# after compose is up, with DATABASE_URL in the environment
+bash scripts/with-secrets.sh dev bash scripts/backup.sh
+# → prints backups/marketplace-YYYY-MM-DD.dump
+
+bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
+# → restores into a throwaway container, prints MATCH or exits 1
+```
+
+`backup.cron` is the nightly line (`0 3 * * *` … `backup.sh`). The restore
+drill creates and removes its own empty volume; a second run must also print
+`MATCH`. Measured RTO/RPO live in `RESTORE-DRILL.md`.
+
 ## Grading
 
 ```bash
 docker compose up -d --wait
-export DB_HOST=127.0.0.1 DB_PORT=5433 DB_USER=admin DB_PASSWORD=admin-bootstrap-only DB_NAME=marketplace
+export DB_HOST=127.0.0.1 DB_PORT=6432 DB_USER=admin DB_PASSWORD=admin-bootstrap-only DB_NAME=marketplace
 export SKIP_VAULT=1    # grader has no access to the store
 
 npm ci
@@ -299,11 +342,21 @@ npm run report
 npm run demo:race
 npm run demo:workers
 npm run demo:retry
+
+export DATABASE_URL=postgres://admin:admin-bootstrap-only@127.0.0.1:6432/marketplace
+export SKIP_VAULT=1    # у грейдера немає доступу до сховища
+bash scripts/with-secrets.sh dev bash scripts/backup.sh
+bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
 ```
 
-Stand credentials are `admin` / `admin-bootstrap-only` / `marketplace` / host
-port **5433** from `docker-compose.yml`. That is not a store secret: the
-container is thrown away with `down -v`.
+`scripts/backup.sh` and `scripts/restore-drill.sh` read `DATABASE_URL` from
+the process environment. Under `SKIP_VAULT=1` the wrapper is a no-op `exec`,
+so a bare `bash scripts/backup.sh` after the same `export` is equivalent.
+
+Stand credentials are `admin` / `admin-bootstrap-only` / `marketplace`. The
+app and scripts use host port **6432** (PgBouncer). Direct Postgres stays on
+**5433** for rotate/admin. Those values are not store secrets: the container
+is thrown away with `down -v`.
 
 ## HW#9
 

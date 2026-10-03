@@ -30,23 +30,27 @@ function connectionFromDbVars(): PgConn | null {
   };
 }
 
+function passwordFromUrlOrFile(url: URL): string {
+  if (url.password) return decodeURIComponent(url.password);
+  if (process.env.DB_PASSWORD) return process.env.DB_PASSWORD;
+  const file = process.env.DB_PASSWORD_FILE ?? 'secrets/db_password';
+  return existsSync(file) ? readFileSync(file, 'utf8').trim() : '';
+}
+
 function connectionFromUrl(): PgConn {
-  const raw = process.env.DB_URL;
+  const raw = process.env.DATABASE_URL ?? process.env.DB_URL;
   if (!raw) {
     throw new Error(
-      'Missing DB_HOST/DB_USER/DB_NAME (TypeORM CLI / SKIP_VAULT) or DB_URL (Nest).',
+      'Missing DB_HOST/DB_USER/DB_NAME (TypeORM CLI / SKIP_VAULT) or DATABASE_URL/DB_URL.',
     );
   }
   const url = new URL(raw);
-  const file = process.env.DB_PASSWORD_FILE ?? 'secrets/db_password';
-  const password =
-    process.env.DB_PASSWORD ?? (existsSync(file) ? readFileSync(file, 'utf8').trim() : '');
   return {
     host: url.hostname,
     port: Number(url.port || '5432'),
     username: decodeURIComponent(url.username),
-    password,
-    database: url.pathname.replace(/^\//, ''),
+    password: passwordFromUrlOrFile(url),
+    database: url.pathname.replace(/^\//, '').replace(/\?.*$/, ''),
   };
 }
 
