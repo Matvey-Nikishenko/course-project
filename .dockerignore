@@ -26,3 +26,4 @@ Dockerfile
 .dockerignore
 rotate.sh
 db/
+backups/

@@ -22,5 +22,24 @@ services:
       timeout: 2s
       retries: 15
 
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.24.1-p1
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "6432:6432"
+    volumes:
+      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+      - ./pgbouncer/start.sh:/start.sh:ro
+      - ./secrets:/run/secrets:ro
+    entrypoint: ["/bin/sh", "/start.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U admin -d marketplace"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
 volumes:
   marketplace-db:
