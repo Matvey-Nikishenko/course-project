@@ -23,7 +23,7 @@ Postgres never parses `FROM orders` on an empty cluster.
 | **RTO** | **3 seconds** — measured wall-clock of the drill: empty container + `pg_restore --no-owner` + checksum. |
 | **RPO** | **24 hours** — `backup.cron` runs `scripts/backup.sh` once a night (`0 3 * * *`). A crash just before 03:00 can lose up to a full day of writes. Filenames include time (`YYYY-MM-DDTHHMMSS`); the destination keeps the last 7 dumps. |
 
-Commands used (same as ## Grading):
+Commands used:
 
 ```bash
 docker compose up -d --wait
