@@ -307,12 +307,16 @@ breaks, all from the lecture:
 
 Backup and restore stay on the same `DATABASE_URL` the HW#11 wrapper injects
 (no new env file). Local destination is `./backups/` (git-ignored), one
-custom-format (`pg_dump -Fc`) file per night, name stamped with the date.
+custom-format (`pg_dump -Fc`) file per run, name stamped with date and time.
+The destination keeps the last 7 dumps; a second run the same day does not
+overwrite the previous artifact. A `.checksum` sidecar stores
+`count(*)|sum(total)` taken at dump time so restore-drill does not compare
+against a live database that may have moved on.
 
 ```bash
 # after compose is up, with DATABASE_URL in the environment
 bash scripts/with-secrets.sh dev bash scripts/backup.sh
-# → prints backups/marketplace-YYYY-MM-DD.dump
+# → prints backups/marketplace-YYYY-MM-DDTHHMMSS.dump
 
 bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
 # → restores into a throwaway container, prints MATCH or exits 1

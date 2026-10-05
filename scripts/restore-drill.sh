@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Restore the latest -Fc dump into a throwaway Postgres and compare
-# count(*)|sum(orders.total) against the live DATABASE_URL. Prints MATCH or exits 1.
+# count(*)|sum(orders.total) to the checksum captured at dump time (sidecar).
+# Prints MATCH or exits 1. Does not consult the live database: a write after
+# backup must not produce a false MISMATCH.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -12,24 +14,18 @@ if [ -z "$DUMP" ]; then
   echo "no dump in $ROOT/backups — run scripts/backup.sh first" >&2
   exit 1
 fi
-
-CHECKSUM_SQL="SELECT CASE WHEN to_regclass('public.orders') IS NULL THEN '0|0' ELSE (SELECT count(*)::text || '|' || coalesce(sum(total), 0)::text FROM orders) END;"
-
-checksum_live() {
-  docker run --rm \
-    --add-host=host.docker.internal:host-gateway \
-    -e PGPASSWORD="$PGPASSWORD" \
-    postgres:16-alpine \
-    psql -h host.docker.internal -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -At -c "$CHECKSUM_SQL"
-}
+SIDE="$DUMP.checksum"
+if [ ! -f "$SIDE" ]; then
+  echo "missing $SIDE — re-run scripts/backup.sh" >&2
+  exit 1
+fi
+BEFORE="$(tr -d '[:space:]' < "$SIDE")"
 
 NAME="marketplace-restore-drill-$$"
 cleanup() {
   docker rm -f -v "$NAME" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
-
-BEFORE="$(checksum_live)"
 
 docker run -d --name "$NAME" \
   -e POSTGRES_USER=admin \
@@ -53,12 +49,23 @@ if [ "$ready" != 1 ]; then
   exit 1
 fi
 
+psql_target() {
+  docker exec -e PGPASSWORD=admin-bootstrap-only "$NAME" \
+    psql -U admin -d marketplace "$@"
+}
+
+# Empty volume: to_regclass is NULL, checksum must be 0|0 (not a parse error).
+EMPTY="$(orders_checksum psql_target | tr -d '[:space:]')"
+if [ "$EMPTY" != "0|0" ]; then
+  echo "restore target was not empty: $EMPTY" >&2
+  exit 1
+fi
+
 docker cp "$DUMP" "$NAME:/tmp/restore.dump"
 docker exec -e PGPASSWORD=admin-bootstrap-only "$NAME" \
   pg_restore --no-owner --no-acl -U admin --dbname=marketplace /tmp/restore.dump
 
-AFTER="$(docker exec -e PGPASSWORD=admin-bootstrap-only "$NAME" \
-  psql -U admin -d marketplace -At -c "$CHECKSUM_SQL")"
+AFTER="$(orders_checksum psql_target | tr -d '[:space:]')"
 
 echo "dump: $DUMP"
 echo "before: $BEFORE"
@@ -67,6 +74,6 @@ echo "after:  $AFTER"
 if [ "$BEFORE" = "$AFTER" ]; then
   echo MATCH
 else
-  echo "MISMATCH: live $BEFORE vs restored $AFTER" >&2
+  echo "MISMATCH: dump $BEFORE vs restored $AFTER" >&2
   exit 1
 fi
