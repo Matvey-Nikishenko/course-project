@@ -8,7 +8,9 @@ secrets/
 
 node_modules/
 dist/
+dist-test/
 spec.json
+pacts/
 
 .git/
 .gitignore
