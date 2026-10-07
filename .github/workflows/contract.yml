@@ -1,0 +1,63 @@
+name: contract
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    env:
+      PACT_BROKER_URL: ${{ secrets.PACT_BROKER_URL }}
+      PACT_BROKER_TOKEN: ${{ secrets.PACT_BROKER_TOKEN }}
+      PROVIDER_VERSION: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Broker
+        run: docker compose up -d --wait pact-broker broker-db
+
+      - name: Default local broker when the secret is empty
+        run: |
+          if [ -z "$PACT_BROKER_URL" ]; then
+            echo "PACT_BROKER_URL=http://127.0.0.1:21620" >> "$GITHUB_ENV"
+          fi
+
+      - name: Consumer contract
+        run: npm run test:contract
+
+      - name: Publish contract
+        run: |
+          code=$(curl -sS -o /tmp/pact-publish.json -w '%{http_code}' \
+            -X PUT "$PACT_BROKER_URL/pacts/provider/marketplace-api/consumer/web-app/version/1.0.0" \
+            -H 'Content-Type: application/json' \
+            -d @pacts/web-app-marketplace-api.json)
+          echo "publish HTTP $code"
+          test "$code" = "201" || test "$code" = "200"
+
+      - name: Verify provider
+        run: npm run verify:provider
+
+      - name: Tag provider version as prod
+        run: |
+          curl -sS -X PUT \
+            "$PACT_BROKER_URL/pacticipants/marketplace-api/versions/${PROVIDER_VERSION}/tags/prod" \
+            -H 'Content-Type: application/json' \
+            -o /dev/null -w 'tag prod → %{http_code}\n'
+
+      - name: can-i-deploy
+        run: |
+          body=$(curl -sS "$PACT_BROKER_URL/can-i-deploy?pacticipant=web-app&version=1.0.0&to=prod")
+          echo "$body"
+          echo "$body" | python3 -c "import json,sys; s=json.load(sys.stdin)['summary']; print(s); raise SystemExit(0 if s.get('deployable') is True else 1)"

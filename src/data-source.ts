@@ -54,14 +54,18 @@ function connectionFromUrl(): PgConn {
   };
 }
 
-const conn = connectionFromDbVars() ?? connectionFromUrl();
+export function buildDataSource(): DataSource {
+  const conn = connectionFromDbVars() ?? connectionFromUrl();
+  return new DataSource({
+    type: 'postgres',
+    ...conn,
+    entities: [User, Product, Order, OrderItem, Job],
+    migrations: [join(__dirname, 'migrations', '*.js')],
+    synchronize: false,
+    logging: false,
+    extra: { max: Number(process.env.DB_POOL_MAX ?? '50') },
+  });
+}
 
-export default new DataSource({
-  type: 'postgres',
-  ...conn,
-  entities: [User, Product, Order, OrderItem, Job],
-  migrations: [join(__dirname, 'migrations', '*.js')],
-  synchronize: false,
-  logging: false,
-  extra: { max: Number(process.env.DB_POOL_MAX ?? '50') },
-});
+/** TypeORM CLI (`-d dist/data-source.js`) needs an instance; env is already set. */
+export default buildDataSource();

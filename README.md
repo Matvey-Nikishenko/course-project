@@ -29,6 +29,7 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | 2026-09-28 | Migration grants `app_user`; `schema.sql` matches live types | `app_user` is how the HTTP process connects. GRANT lived only in `db/schema.sql`, so `migrate` left `SET ROLE app_user; SELECT …` denied. The same GRANT is now in `InitSchema`, and `schema.sql` uses integer cents so it is not a second, stale schema. |
 | 2026-09-29 | Checkout uses atomic `UPDATE … RETURNING`, not JS read-modify-write | `WHERE stock >= $n` is the oversell check and the row lock. A second statement cannot steal units between read and write because there is no separate read. |
 | 2026-10-03 | App reaches Postgres through PgBouncer in transaction mode | A small server pool (8) can cover many API clients (200). Session-scoped features do not survive; named prepares need `max_prepared_statements`. |
+| 2026-10-07 | Integration isolation is TRUNCATE, not ROLLBACK | Nest/TypeORM use a connection pool; a ROLLBACK on one Client would not undo checkout writes. |
 
 ## Configuration
 
@@ -325,6 +326,77 @@ bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
 `backup.cron` is the nightly line (`0 3 * * *` … `backup.sh`). The restore
 drill creates and removes its own empty volume; a second run must also print
 `MATCH`. Measured RTO/RPO live in `RESTORE-DRILL.md`.
+
+## Testing
+
+The ladder from lecture 16, applied to Marketplace: repositories against real
+Postgres in testcontainers, then the full Nest app through supertest, then a
+Pact contract the OpenAPI spec must satisfy.
+
+Isolation is **TRUNCATE … RESTART IDENTITY CASCADE** between tests, one
+container per file. Nest and TypeORM talk through a **pool**, so a
+transaction-ROLLBACK on a single `Client` would not undo HTTP/checkout writes
+on other connections. A container per test is clean and slow (~1 s each);
+TRUNCATE is milliseconds and still leaves a second `npm run test:integration`
+green with no manual cleanup. Repositories take a `Queryable` (`Pool` or
+`Client`) so ROLLBACK remains an option for a SQL-only suite.
+
+`DATABASE_URL` in tests comes from `container.getConnectionUri()` at runtime —
+not from the HW#11 store. The store still feeds a normal `npm start`. Broker
+credentials (`PACT_BROKER_URL`, `PACT_BROKER_TOKEN`) **do** come from that
+store via `scripts/with-secrets.sh`.
+
+```bash
+npm run test:integration    # UsersRepo + ProductsRepo, testcontainers
+npm run test:integration && npm run test:integration   # isolation: both green
+npm run test:e2e            # POST /orders → GET /orders/:id, plus 404 and 400
+npm run test:contract       # consumer → pacts/web-app-marketplace-api.json
+```
+
+`pacts/` is git-ignored; `test:contract` recreates the file. Compiled tests
+live in `dist-test/` (`tsc -p tsconfig.spec.json`); Jest is `reporters: ['default']`,
+`maxWorkers: 1`.
+
+### Pact broker locally
+
+Compose publishes the broker on **21620**. The URL `http://127.0.0.1:21620` is
+the compose address, not a secret. The token is never in the repo.
+
+Two ways to verify the provider:
+
+- **Primary (store):** `bash scripts/with-secrets.sh dev npm run verify:provider`
+  injects `PACT_BROKER_URL` / `PACT_BROKER_TOKEN` from HW#11. Under
+  `SKIP_VAULT=1` the wrapper is `exec`, so this is the same as the next line.
+- **Grader / no store:** `PACT_BROKER_URL=http://127.0.0.1:21620 npm run verify:provider`
+  — when the variable is set, verification publishes `publishVerificationResult: true`
+  to the broker. When it is unset, `verify:provider` uses the local `pacts/*.json`.
+
+Local gate (both answers: unknown, then true). Do not skip the `prod` tag.
+Live `summary` objects from a run on 2026-10-07:
+
+```bash
+docker compose up -d --wait
+npm run test:contract
+curl -s -o /dev/null -w '%{http_code}\n' -X PUT \
+  'http://127.0.0.1:21620/pacts/provider/marketplace-api/consumer/web-app/version/1.0.0' \
+  -H 'Content-Type: application/json' \
+  -d @pacts/web-app-marketplace-api.json
+# → 201
+
+# before verify+tag:
+curl -s 'http://127.0.0.1:21620/can-i-deploy?pacticipant=web-app&version=1.0.0&to=prod'
+# {"deployable":null,"reason":"There is no verified pact between version 1.0.0 of web-app and the latest version of marketplace-api with tag prod (no such version exists)","success":0,"failed":0,"unknown":1}
+
+PACT_BROKER_URL=http://127.0.0.1:21620 npm run verify:provider   # exit 0
+
+curl -s -o /dev/null -w '%{http_code}\n' -X PUT \
+  'http://127.0.0.1:21620/pacticipants/marketplace-api/versions/1.0.0/tags/prod' \
+  -H 'Content-Type: application/json'
+# → 201
+
+curl -s 'http://127.0.0.1:21620/can-i-deploy?pacticipant=web-app&version=1.0.0&to=prod'
+# {"deployable":true,"reason":"All required verification results are published and successful","success":1,"failed":0,"unknown":0}
+```
 
 ## Grading
 

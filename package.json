@@ -26,7 +26,11 @@
     "report": "bash scripts/with-secrets.sh dev node dist/report.js",
     "demo:race": "bash scripts/with-secrets.sh dev node dist/demo-race.js",
     "demo:workers": "bash scripts/with-secrets.sh dev node dist/demo-workers.js",
-    "demo:retry": "bash scripts/with-secrets.sh dev node dist/demo-retry.js"
+    "demo:retry": "bash scripts/with-secrets.sh dev node dist/demo-retry.js",
+    "test:integration": "tsc -p tsconfig.spec.json && jest dist-test/test/integration",
+    "test:e2e": "tsc -p tsconfig.spec.json && jest dist-test/test/e2e",
+    "test:contract": "tsc -p tsconfig.spec.json && jest dist-test/test/contract/consumer.pact.test.js",
+    "verify:provider": "tsc -p tsconfig.spec.json && jest dist-test/test/contract/provider.verify.test.js"
   },
   "dependencies": {
     "@nestjs/common": "11.1.28",
@@ -45,10 +49,17 @@
   "devDependencies": {
     "@nestjs/cli": "11.0.24",
     "@nestjs/schematics": "11.1.0",
+    "@nestjs/testing": "11.1.28",
+    "@pact-foundation/pact": "17.0.1",
     "@redocly/cli": "2.46.0",
+    "@testcontainers/postgresql": "12.1.0",
     "@types/express": "5.0.0",
+    "@types/jest": "30.0.0",
     "@types/node": "22.20.1",
     "@types/pg": "8.23.1",
+    "@types/supertest": "7.2.1",
+    "jest": "30.4.2",
+    "supertest": "7.2.2",
     "typescript": "5.9.3"
   }
 }
