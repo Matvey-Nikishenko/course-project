@@ -73,6 +73,3 @@ export class ProductBuilder {
 
 export const aUser = () => new UserBuilder();
 export const aProduct = () => new ProductBuilder();
-
-/** HTTP checkout still uses this seed email (OrdersService). */
-export const HTTP_BUYER_EMAIL = 'buyer-kateryna@example.com';

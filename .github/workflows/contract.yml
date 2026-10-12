@@ -10,6 +10,7 @@ jobs:
     env:
       PACT_BROKER_URL: ${{ secrets.PACT_BROKER_URL }}
       PACT_BROKER_TOKEN: ${{ secrets.PACT_BROKER_TOKEN }}
+      CONSUMER_VERSION: ${{ github.sha }}
       PROVIDER_VERSION: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +41,7 @@ jobs:
       - name: Publish contract
         run: |
           code=$(curl -sS -o /tmp/pact-publish.json -w '%{http_code}' \
-            -X PUT "$PACT_BROKER_URL/pacts/provider/marketplace-api/consumer/web-app/version/1.0.0" \
+            -X PUT "$PACT_BROKER_URL/pacts/provider/marketplace-api/consumer/web-app/version/${CONSUMER_VERSION}" \
             -H 'Content-Type: application/json' \
             -d @pacts/web-app-marketplace-api.json)
           echo "publish HTTP $code"
@@ -49,15 +50,11 @@ jobs:
       - name: Verify provider
         run: npm run verify:provider
 
-      - name: Tag provider version as prod
-        run: |
-          curl -sS -X PUT \
-            "$PACT_BROKER_URL/pacticipants/marketplace-api/versions/${PROVIDER_VERSION}/tags/prod" \
-            -H 'Content-Type: application/json' \
-            -o /dev/null -w 'tag prod → %{http_code}\n'
-
+      # Do not tag this SHA as prod here. can-i-deploy --to=prod asks whether
+      # the consumer can talk to the provider version already in prod. Tagging
+      # the SHA we just verified would make deployable always true.
       - name: can-i-deploy
         run: |
-          body=$(curl -sS "$PACT_BROKER_URL/can-i-deploy?pacticipant=web-app&version=1.0.0&to=prod")
+          body=$(curl -sS "$PACT_BROKER_URL/can-i-deploy?pacticipant=web-app&version=${CONSUMER_VERSION}&to=prod")
           echo "$body"
           echo "$body" | python3 -c "import json,sys; s=json.load(sys.stdin)['summary']; print(s); raise SystemExit(0 if s.get('deployable') is True else 1)"

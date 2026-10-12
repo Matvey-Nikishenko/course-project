@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { ProductsRepo } from '../../src/repos/products.repo';
 import { UsersRepo } from '../../src/repos/users.repo';
-import { aProduct, aUser, HTTP_BUYER_EMAIL } from '../testkit/builders';
+import { aProduct, aUser } from '../testkit/builders';
 import { PgHandle, startPg, truncateAll } from '../testkit/pg-container';
 
 describe('E2E orders', () => {
@@ -34,11 +34,7 @@ describe('E2E orders', () => {
   test('happy path: POST /orders → 201, GET /orders/:id → 200 same order', async () => {
     const users = new UsersRepo(pg.pool);
     const products = new ProductsRepo(pg.pool);
-    await aUser()
-      .withEmail(HTTP_BUYER_EMAIL)
-      .withRole('buyer')
-      .withBalance(50_000_000)
-      .insertVia(users);
+    const buyer = await aUser().withRole('buyer').withBalance(50_000_000).insertVia(users);
     const seller = await aUser().withRole('seller').insertVia(users);
     const product = await aProduct()
       .forSeller(seller.id)
@@ -50,7 +46,10 @@ describe('E2E orders', () => {
     const created = await request(app.getHttpServer())
       .post('/orders')
       .set('Idempotency-Key', `e2e-${Date.now()}`)
-      .send({ items: [{ product_id: Number(product.id), quantity: 1 }] })
+      .send({
+        buyer_id: Number(buyer.id),
+        items: [{ product_id: Number(product.id), quantity: 1 }],
+      })
       .expect(201);
 
     expect(created.body).toMatchObject({
@@ -78,7 +77,7 @@ describe('E2E orders', () => {
     const res = await request(app.getHttpServer())
       .post('/orders')
       .set('Idempotency-Key', 'e2e-bad-qty')
-      .send({ items: [{ product_id: 1, quantity: 0 }] })
+      .send({ buyer_id: 1, items: [{ product_id: 1, quantity: 0 }] })
       .expect(400);
     expect(res.body.status).toBe(400);
   });
