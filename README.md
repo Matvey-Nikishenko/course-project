@@ -372,10 +372,11 @@ Two ways to verify the provider:
   to the broker. When it is unset, `verify:provider` uses the local `pacts/*.json`.
 
 CI (`.github/workflows/contract.yml`) publishes the consumer contract as
-`github.sha` and does **not** stamp `prod` on the SHA it just verified:
-`can-i-deploy?to=prod` must be allowed to go red when prod has no compatible
-provider. Tagging `prod` is a release step — the local drill below, not the
-pipeline.
+`github.sha` and runs `can-i-deploy` as a matrix of that consumer SHA against
+the provider SHA just verified. It does **not** stamp `prod` first: tagging
+the version you then ask about would make `deployable` always true. `to=prod`
+is the promotion question — the local drill below, not the pipeline. The job
+still fails if verification was not published (`deployable` is not true).
 
 Local gate (both answers: unknown, then true). Do not skip the `prod` tag.
 Live `summary` objects from a run on 2026-10-07:

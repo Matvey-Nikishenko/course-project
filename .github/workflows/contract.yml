@@ -50,11 +50,16 @@ jobs:
       - name: Verify provider
         run: npm run verify:provider
 
-      # Do not tag this SHA as prod here. can-i-deploy --to=prod asks whether
-      # the consumer can talk to the provider version already in prod. Tagging
-      # the SHA we just verified would make deployable always true.
+      # Ask whether this consumer SHA is verified against this provider SHA.
+      # `to=prod` is the promotion question (local drill in README); answering
+      # it here would require tagging this SHA as prod first, which makes the
+      # gate always green.
       - name: can-i-deploy
         run: |
-          body=$(curl -sS "$PACT_BROKER_URL/can-i-deploy?pacticipant=web-app&version=${CONSUMER_VERSION}&to=prod")
+          body=$(curl -sS -G "$PACT_BROKER_URL/matrix" \
+            --data-urlencode "q[][pacticipant]=web-app" \
+            --data-urlencode "q[][version]=${CONSUMER_VERSION}" \
+            --data-urlencode "q[][pacticipant]=marketplace-api" \
+            --data-urlencode "q[][version]=${PROVIDER_VERSION}")
           echo "$body"
           echo "$body" | python3 -c "import json,sys; s=json.load(sys.stdin)['summary']; print(s); raise SystemExit(0 if s.get('deployable') is True else 1)"
