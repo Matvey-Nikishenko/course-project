@@ -10,10 +10,8 @@ import { CheckoutRejected, checkout } from '../checkout';
 import { Order as OrderRow } from '../entities/order';
 import { User } from '../entities/user';
 import { TypeormService } from '../typeorm/typeorm.service';
-import { CreateOrderItemDto } from './dto/create-order-item.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
 import type { Order } from './entities/order';
-
-const HTTP_BUYER_EMAIL = 'buyer-kateryna@example.com';
 
 @Injectable()
 export class OrdersService {
@@ -45,21 +43,21 @@ export class OrdersService {
     return this.toHttp(row);
   }
 
-  async create(items: CreateOrderItemDto[]): Promise<Order> {
+  async create(dto: CreateOrderDto): Promise<Order> {
     const buyer = await this.typeorm.ds.getRepository(User).findOne({
-      where: { email: HTTP_BUYER_EMAIL },
+      where: { id: String(dto.buyer_id) },
     });
     if (!buyer) {
       throw new UnprocessableEntityException({
         code: 'unknown-buyer',
-        detail: `seed buyer ${HTTP_BUYER_EMAIL} is missing — run npm run seed`,
+        detail: `buyer ${dto.buyer_id} is not in the database`,
       });
     }
 
     try {
       const { orderId } = await checkout(this.typeorm.ds, {
         buyerId: buyer.id,
-        items: items.map((item) => ({
+        items: dto.items.map((item) => ({
           productId: String(item.product_id),
           quantity: item.quantity,
         })),

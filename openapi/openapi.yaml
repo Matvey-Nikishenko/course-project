@@ -404,8 +404,13 @@ components:
     CreateOrder:
       type: object
       additionalProperties: false
-      required: [items]
+      required: [buyer_id, items]
       properties:
+        buyer_id:
+          type: integer
+          minimum: 1
+          description: Buyer placing the order. Until auth lands, the client sends the id in the body.
+          example: 1
         items:
           type: array
           minItems: 1
