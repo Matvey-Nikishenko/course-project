@@ -19,6 +19,7 @@ export class StoreService {
   readonly orders: Order[] = [
     {
       id: 1,
+      buyer_id: 1,
       items: [{ product_id: 1, quantity: 1, unit_price_cents: 260000 }],
       total_cents: 260000,
       status: 'paid',
@@ -78,6 +79,7 @@ export class StoreService {
     }));
     const order: Order = {
       id: this.nextOrderId++,
+      buyer_id: 1,
       items: orderItems,
       total_cents: orderItems.reduce(
         (sum, item) => sum + item.unit_price_cents * item.quantity,
