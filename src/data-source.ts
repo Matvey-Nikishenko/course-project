@@ -8,6 +8,31 @@ import { OrderItem } from './entities/order-item';
 import { Product } from './entities/product';
 import { User } from './entities/user';
 
+// TypeORM CLI and this module both evaluate the DataSource at import time,
+// which is before ConfigModule reads .env. Load it here when the shell did not.
+function loadDotEnv(): void {
+  if (process.env.DB_URL || process.env.DATABASE_URL || process.env.DB_HOST) return;
+  if (!existsSync('.env')) return;
+  for (const line of readFileSync('.env', 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq < 1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    if (process.env[key] !== undefined) continue;
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  }
+}
+
+loadDotEnv();
+
 type PgConn = {
   host: string;
   port: number;

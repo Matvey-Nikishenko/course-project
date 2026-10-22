@@ -141,6 +141,31 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+    patch:
+      operationId: updateOrderStatus
+      tags: [orders]
+      summary: Change an order status and notify listeners
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderStatus'
+      responses:
+        '200':
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /health:
     get:
       operationId: getHealth
@@ -366,11 +391,16 @@ components:
     Order:
       type: object
       additionalProperties: false
-      required: [id, items, total_cents, status, created_at]
+      required: [id, buyer_id, items, total_cents, status, created_at]
       properties:
         id:
           type: integer
           example: 1
+        buyer_id:
+          type: integer
+          minimum: 1
+          description: Buyer who placed the order
+          example: 3
         items:
           type: array
           minItems: 1
@@ -382,7 +412,7 @@ components:
           example: 520000
         status:
           type: string
-          enum: [new, paid, cancelled]
+          enum: [new, paid, shipped, cancelled]
           example: paid
         created_at:
           type: string
@@ -428,6 +458,15 @@ components:
           type: integer
           minimum: 1
           example: 1
+    UpdateOrderStatus:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [new, paid, shipped, cancelled]
+          example: shipped
 tags:
   - name: products
     description: Product catalog

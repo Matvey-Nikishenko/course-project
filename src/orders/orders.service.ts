@@ -10,16 +10,21 @@ import { CheckoutRejected, checkout } from '../checkout';
 import { Order as OrderRow } from '../entities/order';
 import { User } from '../entities/user';
 import { TypeormService } from '../typeorm/typeorm.service';
+import { OrderEventsService } from './order-events.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { OrderStatusName } from './dto/update-order-status.dto';
 import type { Order } from './entities/order';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly typeorm: TypeormService) {}
+  constructor(
+    private readonly typeorm: TypeormService,
+    private readonly orderEvents: OrderEventsService,
+  ) {}
 
   async list(query: CursorPageQueryDto) {
     const rows = await this.typeorm.ds.getRepository(OrderRow).find({
-      relations: { items: { product: true } },
+      relations: { buyer: true, items: { product: true } },
       order: { id: 'ASC' },
     });
     return paginate(
@@ -32,7 +37,7 @@ export class OrdersService {
   async findOne(id: number) {
     const row = await this.typeorm.ds.getRepository(OrderRow).findOne({
       where: { id: String(id) },
-      relations: { items: { product: true } },
+      relations: { buyer: true, items: { product: true } },
     });
     if (!row) {
       throw new NotFoundException({
@@ -86,10 +91,35 @@ export class OrdersService {
     }
   }
 
+  /** Buyer id as stored, or null when the order does not exist. Used by the gateway. */
+  async ownerId(orderId: number): Promise<string | null> {
+    const row = await this.typeorm.ds.getRepository(OrderRow).findOne({
+      where: { id: String(orderId) },
+      relations: { buyer: true },
+    });
+    return row?.buyer?.id ?? null;
+  }
+
+  async updateStatus(id: number, status: OrderStatusName): Promise<Order> {
+    const repo = this.typeorm.ds.getRepository(OrderRow);
+    const row = await repo.findOne({ where: { id: String(id) } });
+    if (!row) {
+      throw new NotFoundException({
+        code: 'not-found',
+        detail: `order ${id} not found`,
+      });
+    }
+    row.status = status;
+    await repo.save(row);
+    await this.orderEvents.publish(id, status);
+    return this.findOne(id);
+  }
+
   private toHttp(row: OrderRow): Order {
-    const status = row.status === 'cancelled' ? 'cancelled' : row.status === 'new' ? 'new' : 'paid';
+    const status = row.status;
     return {
       id: Number(row.id),
+      buyer_id: Number(row.buyer.id),
       items: row.items.map((item) => ({
         product_id: Number(item.product.id),
         quantity: item.quantity,

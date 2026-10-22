@@ -6,8 +6,9 @@ export interface OrderItem {
 
 export interface Order {
   id: number;
+  buyer_id: number;
   items: OrderItem[];
   total_cents: number;
-  status: 'new' | 'paid' | 'cancelled';
+  status: 'new' | 'paid' | 'shipped' | 'cancelled';
   created_at: string;
 }

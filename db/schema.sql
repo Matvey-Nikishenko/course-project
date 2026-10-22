@@ -66,6 +66,16 @@ CREATE TABLE jobs (
 
 CREATE INDEX idx_jobs_pending ON jobs (id) WHERE processed = 0 AND attempts < 5;
 
+-- Replay log for SSE Last-Event-ID. event_id is per order, not a global sequence,
+-- so a reconnect asking for id > 3 still means "the 4th status of this order"
+-- after the API process restarts.
+CREATE TABLE order_status_events (
+  order_id bigint  NOT NULL REFERENCES orders (id) ON DELETE CASCADE,
+  event_id integer NOT NULL CHECK (event_id > 0),
+  status   text    NOT NULL CHECK (status IN ('new', 'paid', 'shipped', 'cancelled')),
+  PRIMARY KEY (order_id, event_id)
+);
+
 -- The application connects as app_user (created by db/init.sql when the
 -- container initialises its volume). Guarded so the schema also applies to a
 -- Postgres where that role was never created. The TypeORM migration carries

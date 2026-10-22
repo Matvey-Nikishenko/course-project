@@ -3,6 +3,7 @@ import path from 'node:path';
 import { INestApplication, LogLevel, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import * as OpenApiValidator from 'express-openapi-validator';
@@ -42,6 +43,7 @@ function validatorErrorHandler(
 
 /** Same pipes, spec validator and filters as production — E2E must not test a different app. */
 export function configureApp(app: INestApplication): INestApplication {
+  app.useWebSocketAdapter(new IoAdapter(app));
   const config = app.get(ConfigService<Env, true>);
   app.useLogger(LOG_LEVELS[config.get('LOG_LEVEL', { infer: true })]);
   app.enableShutdownHooks();
@@ -52,6 +54,9 @@ export function configureApp(app: INestApplication): INestApplication {
       apiSpec: path.join(process.cwd(), 'openapi', 'openapi.yaml'),
       validateRequests: true,
       validateResponses: true,
+      // SSE is a long-lived text/event-stream. Response validation would
+      // buffer it and reject the unfinished body.
+      ignorePaths: /\/orders\/[^/]+\/events$/,
     }),
   );
   app.use(validatorErrorHandler as unknown as (...args: unknown[]) => void);

@@ -30,6 +30,7 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | 2026-09-29 | Checkout uses atomic `UPDATE … RETURNING`, not JS read-modify-write | `WHERE stock >= $n` is the oversell check and the row lock. A second statement cannot steal units between read and write because there is no separate read. |
 | 2026-10-03 | App reaches Postgres through PgBouncer in transaction mode | A small server pool (8) can cover many API clients (200). Session-scoped features do not survive; named prepares need `max_prepared_statements`. |
 | 2026-10-07 | Integration isolation is TRUNCATE, not ROLLBACK | Nest/TypeORM use a connection pool; a ROLLBACK on one Client would not undo checkout writes. |
+| 2026-10-17 | Order-status notifications go out on one in-process bus | WebSocket rooms and SSE both subscribe to `OrderEventsService`. A second API instance cannot see those rooms. |
 
 ## Configuration
 
@@ -404,6 +405,66 @@ curl -s -o /dev/null -w '%{http_code}\n' -X PUT \
 curl -s 'http://127.0.0.1:21620/can-i-deploy?pacticipant=web-app&version=1.0.0&to=prod'
 # {"deployable":true,"reason":"All required verification results are published and successful","success":1,"failed":0,"unknown":0}
 ```
+
+## Realtime
+
+A status change is `PATCH /orders/:id` with `{ "status": "new" | "paid" | "shipped" | "cancelled" }`.
+`OrdersService.updateStatus` saves the row and publishes on `OrderEventsService`.
+The gateway and `GET /orders/:id/events` only listen — they do not emit.
+
+WebSocket: the socket identifies itself in `handshake.auth` (`{ userId }`) at
+connect time. `join` carries only `{ orderId }`. A `userId` in the join body is
+ignored, so a socket opened as one buyer cannot enter another buyer's room by
+naming their id. A missing auth, or an order that is not theirs, returns
+`{ ok: false }` and does not join. The event name is `order.status`, sent with
+`server.to(room)`.
+
+SSE: `GET /orders/:id/events` requires the same owner in the `x-user-id` header.
+Without it the response is 401, not a stream. Each event has `id:`,
+`event: order.status` and `data:` JSON. `Last-Event-ID: N` is replayed from
+`order_status_events` (`event_id > N`), so a process restart does not reset the
+numbers. The first bytes of a successful stream are `retry: 1000`.
+
+Socket rooms still live in the process that accepted the connection: a status
+change handled by another instance is not delivered to sockets joined elsewhere.
+The Redis adapter from lecture 18 step 7 publishes those room emits across the
+cluster. The numbered log itself is already in Postgres, so replay does not
+depend on which instance the client reconnects to.
+
+```bash
+npm run db:up          # Postgres + PgBouncer, password file aligned
+npm run migrate && npm run seed
+npm start              # HTTP :3000 and the socket.io gateway on the same port
+
+# other terminal — clients in different rooms, then both in order A's room
+node scripts/realtime-demo.mjs; echo "exit=$?"
+node scripts/realtime-demo.mjs --same-room; echo "exit=$?"
+
+# SSE: owner header is the buyer_id of that order. No header → 401.
+BUYER=$(curl -s http://localhost:3000/orders/1 | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>process.stdout.write(String(JSON.parse(d).buyer_id)))")
+curl -sN --max-time 2 -D - -o /dev/null -H "x-user-id: $BUYER" http://localhost:3000/orders/1/events
+for s in shipped cancelled paid new; do
+  curl -s -X PATCH http://localhost:3000/orders/1 \
+    -H 'content-type: application/json' -d "{\"status\":\"$s\"}"
+done
+curl -sN --max-time 2 -H "x-user-id: $BUYER" -H 'Last-Event-ID: 3' http://localhost:3000/orders/1/events
+```
+
+## Trade-offs: WebSocket vs SSE
+
+For order-status notifications I would keep SSE in production. The buyer only
+needs a server-to-client stream, `Last-Event-ID` is part of the protocol rather
+than something the app invents, and the connection is ordinary HTTP that
+proxies already allow. WebSocket earns its place when the client also sends a
+continuous stream (chat, a cursor); a join-and-listen notification does not
+need a second protocol.
+
+| Criterion | WebSocket | SSE |
+| --- | --- | --- |
+| Direction | both ways after the upgrade | server to client only |
+| Reconnect | socket.io retries on the manager (`reconnect_attempt`) | browser sends `Last-Event-ID`; server replays `id > N` |
+| Infrastructure | Upgrade, idle timeouts, often a sticky session | plain HTTP; no upgrade |
+| Cost per event | a frame on a dedicated socket | a few bytes on the stream already open |
 
 ## Grading
 
