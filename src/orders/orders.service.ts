@@ -10,6 +10,8 @@ import { CheckoutRejected, checkout } from '../checkout';
 import { Order as OrderRow } from '../entities/order';
 import { User } from '../entities/user';
 import { TypeormService } from '../typeorm/typeorm.service';
+import { OrderPlacedPublisherService } from '../broker/order-placed-publisher.service';
+import { orderPlacedEvent } from '../broker/order-placed';
 import { OrderEventsService } from './order-events.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderStatusName } from './dto/update-order-status.dto';
@@ -20,6 +22,7 @@ export class OrdersService {
   constructor(
     private readonly typeorm: TypeormService,
     private readonly orderEvents: OrderEventsService,
+    private readonly orderPlaced: OrderPlacedPublisherService,
   ) {}
 
   async list(query: CursorPageQueryDto) {
@@ -67,7 +70,17 @@ export class OrdersService {
           quantity: item.quantity,
         })),
       });
-      return this.findOne(Number(orderId));
+      const order = await this.findOne(Number(orderId));
+      await this.orderPlaced.publish(
+        orderPlacedEvent({
+          orderId: order.id,
+          buyerId: order.buyer_id,
+          totalCents: order.total_cents,
+          status: order.status,
+          occurredAt: order.created_at,
+        }),
+      );
+      return order;
     } catch (err) {
       if (err instanceof CheckoutRejected) {
         if (err.code === 'unknown_product') {

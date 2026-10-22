@@ -19,4 +19,4 @@ docker compose exec -T db psql -U admin -d marketplace \
   -c "ALTER ROLE ${DB_ROLE} WITH PASSWORD '$(cat "${SECRET_FILE}")';" >/dev/null
 
 docker compose restart pgbouncer >/dev/null
-echo "Postgres is up on :5433, PgBouncer on :6432, role ${DB_ROLE} matches ${SECRET_FILE}"
+echo "Postgres is up on :5433, PgBouncer on :6432, RabbitMQ AMQP on :5672, role ${DB_ROLE} matches ${SECRET_FILE}"

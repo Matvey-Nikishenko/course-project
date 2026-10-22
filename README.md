@@ -31,6 +31,7 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | 2026-10-03 | App reaches Postgres through PgBouncer in transaction mode | A small server pool (8) can cover many API clients (200). Session-scoped features do not survive; named prepares need `max_prepared_statements`. |
 | 2026-10-07 | Integration isolation is TRUNCATE, not ROLLBACK | Nest/TypeORM use a connection pool; a ROLLBACK on one Client would not undo checkout writes. |
 | 2026-10-17 | Order-status notifications go out on one in-process bus | WebSocket rooms and SSE both subscribe to `OrderEventsService`. A second API instance cannot see those rooms. |
+| 2026-10-22 | `order.placed` is at-least-once plus an idempotent insert | RabbitMQ does not offer exactly-once delivery. The effect is `INSERT … ON CONFLICT (event_id) DO NOTHING`, so a redelivery applies once. |
 
 ## Configuration
 
@@ -60,6 +61,7 @@ build context.
 | `DB_USER` | **yes** (TypeORM CLI) | — | **HW#11 store** | Role. The grader uses `admin` from compose. |
 | `DB_PASSWORD` | no | empty string | **HW#11 store** | Password. No literal in `data-source.ts`. |
 | `DB_NAME` | **yes** (TypeORM CLI) | — | **HW#11 store** | Database. Here: `marketplace`. |
+| `BROKER_URL` | no | absent, checkout does not publish | **HW#11 store** | AMQP URL, `amqp://user:pass@host:5672`. Port **5672** is AMQP. **15672** is the management UI and does not speak AMQP. |
 
 `DB_URL`, `DB_PASSWORD_FILE`, and the TypeORM `DB_*` keys come from the HW#11
 store; they are not in git. Container dev credentials stay in
@@ -466,6 +468,47 @@ need a second protocol.
 | Infrastructure | Upgrade, idle timeouts, often a sticky session | plain HTTP; no upgrade |
 | Cost per event | a frame on a dedicated socket | a few bytes on the stream already open |
 
+## Async-події через RabbitMQ
+
+Checkout writes the order, then `OrderPlacedPublisherService` publishes `order.placed`. The body is a contract — `eventId`, `type`, `occurredAt`, `data` — and not an ORM row. `eventId` is `order.placed:<order id>`, so the same placement is the same key on a repeat. The publisher opens a confirm channel and waits for `waitForConfirms`. It does not declare queues or bindings. The consumer, and each demo before it publishes, declares `shop.events`, the quorum queue `orders.placed`, the binding, and the dead-letter exchange.
+
+A confirm means the broker accepted the publish. A routing key with no binding is still confirmed, and the message is dropped. `shop.events` has an alternate exchange, `shop.unroutable`, so that case is kept instead of discarded. The publisher still does not know who is bound.
+
+The consumer calls `channel.prefetch(50)` and consumes with `noAck: false`. Ack runs only after the insert. One effect is a single insert, a few milliseconds, so 50 in flight stays well under RabbitMQ's 30-minute `consumer_timeout`. `prefetch=1` would fit a heavy task and would only add a round trip here.
+
+The effect is `INSERT INTO order_placed_effects (event_id, order_id) … ON CONFLICT (event_id) DO NOTHING`. That statement is idempotent. `eventId` is the idempotency key that makes the repeat safe. `qty = qty - 1` would not be. The row is in Postgres, so it survives a consumer restart and is visible to a second process. A `Set` in memory would not.
+
+This is at-least-once delivery, not exactly-once delivery. RabbitMQ redelivers when the ack does not arrive. Exactly-once delivery is not something the broker provides. The second delivery runs the same insert, conflicts, and does not apply the effect again. At-least-once delivery plus that idempotent effect is an exactly-once result.
+
+`demo:duplicate` shows the redelivery with `kill -9` on a child consumer after the insert has committed and before ack. The broker sees the socket drop and returns the message. `channel.close()` is a clean shutdown, so the demo does not use it.
+
+A crash between a separate "already processed" mark and a later business write is still open. Closing it is one database COMMIT, which is HW#22, together with the outbox. Here the effect is the insert itself, so the key and the effect commit together. The order row and the broker publish are still two steps: publish runs after checkout returns, so a crash in between keeps the order and loses the event. That gap is the outbox.
+
+Dead-lettering stays on the broker default. `dead-letter-strategy: at-least-once` without `overflow: reject-publish` is stored and then ignored; the broker falls back to at-most-once and mentions it only in the log.
+
+The image is RabbitMQ 4.2 (LTS, commercial support through 30 June 2030). Queues are quorum. Classic mirroring is not used; it was removed in 4.0.
+
+The three runs below are from this stand. Stop `npm start` first, or the API consumer takes messages out of the same queue and the counts move.
+
+```
+published=5
+delivered=5
+effect=5
+acked=5
+dlq=0
+prefetch=50
+
+rejected=1
+work=0
+dlq=1
+dlq-reason=rejected
+effect=0
+
+deliveries=2
+effect=1
+skipped=1
+```
+
 ## Grading
 
 ```bash
@@ -486,6 +529,11 @@ npm run report
 npm run demo:race
 npm run demo:workers
 npm run demo:retry
+
+export BROKER_URL=amqp://app:app@127.0.0.1:5672
+npm run demo:publish
+npm run demo:dlq
+npm run demo:duplicate
 
 export DATABASE_URL=postgres://admin:admin-bootstrap-only@127.0.0.1:6432/marketplace
 export SKIP_VAULT=1
