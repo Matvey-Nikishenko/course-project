@@ -76,6 +76,20 @@ CREATE TABLE order_status_events (
   PRIMARY KEY (order_id, event_id)
 );
 
+-- Idempotent effect of order.placed. event_id is the idempotency key.
+-- A redelivery inserts nothing. order_placed_deliveries only counts attempts.
+CREATE TABLE order_placed_effects (
+  event_id   text        PRIMARY KEY,
+  order_id   bigint      NOT NULL,
+  applied_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE order_placed_deliveries (
+  id          bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  event_id    text        NOT NULL,
+  received_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- The application connects as app_user (created by db/init.sql when the
 -- container initialises its volume). Guarded so the schema also applies to a
 -- Postgres where that role was never created. The TypeORM migration carries
