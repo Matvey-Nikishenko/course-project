@@ -412,20 +412,24 @@ A status change is `PATCH /orders/:id` with `{ "status": "new" | "paid" | "shipp
 `OrdersService.updateStatus` saves the row and publishes on `OrderEventsService`.
 The gateway and `GET /orders/:id/events` only listen — they do not emit.
 
-WebSocket: after connect, the client sends `join` with `{ orderId, userId }`.
-The handler joins `orders:<id>` only when that user owns the order. Anyone else
-gets `{ ok: false }` and stays out of the room. The event name is `order.status`,
-and it is sent with `server.to(room)`, not to every socket.
+WebSocket: the socket identifies itself in `handshake.auth` (`{ userId }`) at
+connect time. `join` carries only `{ orderId }`. A `userId` in the join body is
+ignored, so a socket opened as one buyer cannot enter another buyer's room by
+naming their id. A missing auth, or an order that is not theirs, returns
+`{ ok: false }` and does not join. The event name is `order.status`, sent with
+`server.to(room)`.
 
-SSE: `GET /orders/:id/events` answers `text/event-stream`. Each event has
-`id:`, `event: order.status` and `data:` JSON. A reconnect with
-`Last-Event-ID: N` is replayed from the in-memory buffer (`id > N`). The first
-bytes are `retry: 1000`, so the client does not wait on the browser default.
+SSE: `GET /orders/:id/events` requires the same owner in the `x-user-id` header.
+Without it the response is 401, not a stream. Each event has `id:`,
+`event: order.status` and `data:` JSON. `Last-Event-ID: N` is replayed from
+`order_status_events` (`event_id > N`), so a process restart does not reset the
+numbers. The first bytes of a successful stream are `retry: 1000`.
 
-With two API instances a client's room and that buffer exist only in the
-process that accepted the connection, so a status change handled by the other
-process never arrives. The Redis adapter from lecture 18 step 7 is what
-publishes those room emits across the cluster.
+Socket rooms still live in the process that accepted the connection: a status
+change handled by another instance is not delivered to sockets joined elsewhere.
+The Redis adapter from lecture 18 step 7 publishes those room emits across the
+cluster. The numbered log itself is already in Postgres, so replay does not
+depend on which instance the client reconnects to.
 
 ```bash
 npm run db:up          # Postgres + PgBouncer, password file aligned
@@ -436,13 +440,14 @@ npm start              # HTTP :3000 and the socket.io gateway on the same port
 node scripts/realtime-demo.mjs; echo "exit=$?"
 node scripts/realtime-demo.mjs --same-room; echo "exit=$?"
 
-# SSE header, then four status writes, then replay after id 3
-curl -sN --max-time 2 -D - -o /dev/null http://localhost:3000/orders/1/events
+# SSE: owner header is the buyer_id of that order. No header → 401.
+BUYER=$(curl -s http://localhost:3000/orders/1 | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>process.stdout.write(String(JSON.parse(d).buyer_id)))")
+curl -sN --max-time 2 -D - -o /dev/null -H "x-user-id: $BUYER" http://localhost:3000/orders/1/events
 for s in shipped cancelled paid new; do
   curl -s -X PATCH http://localhost:3000/orders/1 \
     -H 'content-type: application/json' -d "{\"status\":\"$s\"}"
 done
-curl -sN --max-time 2 -H 'Last-Event-ID: 3' http://localhost:3000/orders/1/events
+curl -sN --max-time 2 -H "x-user-id: $BUYER" -H 'Last-Event-ID: 3' http://localhost:3000/orders/1/events
 ```
 
 ## Trade-offs: WebSocket vs SSE

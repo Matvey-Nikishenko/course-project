@@ -26,7 +26,11 @@ async function api(path, options = {}) {
 }
 
 function join(orderId, userId) {
-  const socket = io(base, { transports: ['websocket'], reconnection: false });
+  const socket = io(base, {
+    transports: ['websocket'],
+    reconnection: false,
+    auth: { userId },
+  });
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       socket.disconnect();
@@ -38,7 +42,7 @@ function join(orderId, userId) {
       reject(err);
     });
     socket.on('connect', () => {
-      socket.emit('join', { orderId, userId }, (ack) => {
+      socket.emit('join', { orderId }, (ack) => {
         clearTimeout(timer);
         if (!ack?.ok) {
           socket.disconnect();

@@ -12,7 +12,7 @@ import { Subscription } from 'rxjs';
 import { OrderEventsService } from './order-events.service';
 import { OrdersService } from './orders.service';
 
-type JoinBody = { orderId?: unknown; userId?: unknown };
+type JoinBody = { orderId?: unknown };
 
 @WebSocketGateway({ cors: { origin: true } })
 export class OrdersGateway implements OnGatewayInit, OnModuleDestroy {
@@ -42,7 +42,7 @@ export class OrdersGateway implements OnGatewayInit, OnModuleDestroy {
     @MessageBody() body: JoinBody,
   ): Promise<{ ok: boolean; room?: string }> {
     const orderId = Number(body?.orderId);
-    const userId = Number(body?.userId);
+    const userId = Number((client.handshake.auth as { userId?: unknown } | undefined)?.userId);
     if (!Number.isInteger(orderId) || orderId < 1 || !Number.isInteger(userId) || userId < 1) {
       return { ok: false };
     }

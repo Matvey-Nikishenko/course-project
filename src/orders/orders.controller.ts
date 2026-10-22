@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
+  NotFoundException,
   Param,
   ParseIntPipe,
   Patch,
@@ -10,6 +12,7 @@ import {
   Query,
   Req,
   Res,
+  UnauthorizedException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Subscription } from 'rxjs';
@@ -32,11 +35,32 @@ export class OrdersController {
   }
 
   @Get(':id/events')
-  events(
+  async events(
     @Param('id', ParseIntPipe) id: number,
     @Req() req: Request,
     @Res() res: Response,
-  ): void {
+  ): Promise<void> {
+    const userId = Number(req.header('x-user-id'));
+    if (!Number.isInteger(userId) || userId < 1) {
+      throw new UnauthorizedException({
+        code: 'anonymous',
+        detail: 'x-user-id is required to listen to an order',
+      });
+    }
+    const ownerId = await this.ordersService.ownerId(id);
+    if (ownerId === null) {
+      throw new NotFoundException({
+        code: 'not-found',
+        detail: `order ${id} not found`,
+      });
+    }
+    if (ownerId !== String(userId)) {
+      throw new ForbiddenException({
+        code: 'not-owner',
+        detail: `order ${id} belongs to another buyer`,
+      });
+    }
+
     const lastRaw = req.header('last-event-id');
     const last = lastRaw === undefined || lastRaw === '' ? 0 : Number(lastRaw);
     const lastId = Number.isFinite(last) ? last : 0;
@@ -59,7 +83,7 @@ export class OrdersController {
       next: write,
       error: () => res.end(),
     });
-    for (const event of this.orderEvents.since(id, lastId)) write(event);
+    for (const event of await this.orderEvents.since(id, lastId)) write(event);
 
     req.on('close', () => subscription.unsubscribe());
   }

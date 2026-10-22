@@ -111,7 +111,7 @@ export class OrdersService {
     }
     row.status = status;
     await repo.save(row);
-    this.orderEvents.publish(id, status);
+    await this.orderEvents.publish(id, status);
     return this.findOne(id);
   }
 
