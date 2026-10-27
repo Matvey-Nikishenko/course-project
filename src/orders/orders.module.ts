@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BrokerModule } from '../broker/broker.module';
 import { TypeormModule } from '../typeorm/typeorm.module';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
@@ -6,7 +7,7 @@ import { OrdersGateway } from './orders.gateway';
 import { OrderEventsService } from './order-events.service';
 
 @Module({
-  imports: [TypeormModule],
+  imports: [TypeormModule, BrokerModule],
   controllers: [OrdersController],
   providers: [OrdersService, OrdersGateway, OrderEventsService],
 })

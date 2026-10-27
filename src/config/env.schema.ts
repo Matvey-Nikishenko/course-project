@@ -17,6 +17,10 @@ export const envSchema = z.object({
   DB_PASSWORD_FILE: z.string().min(1).default('secrets/db_password'),
 
   DB_POOL_MAX: z.coerce.number().int().min(1).max(100).default(5),
+
+  // Optional. Absent, the API does not publish. The value comes from the HW#11
+  // store (or the grading export). AMQP has no separate password file here.
+  BROKER_URL: z.url({ protocol: /^amqp$/ }).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
