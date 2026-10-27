@@ -470,11 +470,11 @@ need a second protocol.
 
 ## Async-події через RabbitMQ
 
-Checkout writes the order, then `OrderPlacedPublisherService` publishes `order.placed`. The body is a contract — `eventId`, `type`, `occurredAt`, `data` — and not an ORM row. `eventId` is `order.placed:<order id>`, so the same placement is the same key on a repeat. The publisher opens a confirm channel and waits for `waitForConfirms`. It does not declare queues or bindings. The consumer, and each demo before it publishes, declares `shop.events`, the quorum queue `orders.placed`, the binding, and the dead-letter exchange.
+Checkout writes the order, then `OrderPlacedPublisherService` publishes `order.placed`. The body is a contract — `eventId`, `type`, `occurredAt`, `data` — and not an ORM row. `eventId` is `order.placed:<order id>`, so the same placement is the same key on a repeat. The API keeps one confirm channel for the life of the process and waits for `waitForConfirms` on it. A broker error after the order row is committed is logged and does not turn that order into HTTP 500. The publisher does not declare queues or bindings. The consumer, and each demo before it publishes, declares `shop.events`, the quorum queue `orders.placed`, the binding, and the dead-letter exchange.
 
 A confirm means the broker accepted the publish. A routing key with no binding is still confirmed, and the message is dropped. `shop.events` has an alternate exchange, `shop.unroutable`, so that case is kept instead of discarded. The publisher still does not know who is bound.
 
-The consumer calls `channel.prefetch(50)` and consumes with `noAck: false`. Ack runs only after the insert. One effect is a single insert, a few milliseconds, so 50 in flight stays well under RabbitMQ's 30-minute `consumer_timeout`. `prefetch=1` would fit a heavy task and would only add a round trip here.
+The consumer calls `channel.prefetch(50)` and consumes with `noAck: false`. Ack runs only after the insert. A database error nacks the message and the API consumer opens the queue again; it does not swallow the failure and leave the queue without a reader. One effect is a single insert, a few milliseconds, so 50 in flight stays well under RabbitMQ's 30-minute `consumer_timeout`. `prefetch=1` would fit a heavy task and would only add a round trip here.
 
 The effect is `INSERT INTO order_placed_effects (event_id, order_id) … ON CONFLICT (event_id) DO NOTHING`. That statement is idempotent. `eventId` is the idempotency key that makes the repeat safe. `qty = qty - 1` would not be. The row is in Postgres, so it survives a consumer restart and is visible to a second process. A `Set` in memory would not.
 

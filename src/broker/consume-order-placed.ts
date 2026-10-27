@@ -29,6 +29,7 @@ async function attach(
       settled = true;
       resolve();
     };
+    ch.once('close', () => fail(new Error('consumer channel closed')));
     // prefetch may deliver several messages at once. One pg client cannot run
     // those queries concurrently, so the handlers share a chain.
     ch.consume(
@@ -111,22 +112,75 @@ export async function runBoundedConsumer(opts: {
   }
 }
 
-/** Long-lived consumer for the API process. Ack is inside attach, after the insert. */
+const RESTART_DELAY_MS = 1000;
+
+async function safeClose(opened: { conn: ChannelModel; ch: Channel } | null): Promise<void> {
+  if (!opened) return;
+  try {
+    await opened.ch.close();
+  } catch {
+    // Channel already closed with the connection.
+  }
+  try {
+    await opened.conn.close();
+  } catch {
+    // The broker may already have dropped the socket.
+  }
+}
+
+/**
+ * Long-lived consumer for the API process. Ack stays inside attach, after the
+ * insert. A database error nacks and rejects attach; this loop opens the queue
+ * again instead of leaving it without a consumer. crashBeforeAck never
+ * resolves, so the duplicate demo's child stays on the first delivery.
+ */
 export async function startBackgroundConsumer(opts: {
   brokerUrl: string;
   tx: Tx;
   crashBeforeAck?: boolean;
+  onError?: (err: unknown) => void;
 }): Promise<{ close: () => Promise<void> }> {
-  const { conn, ch } = await open(opts.brokerUrl);
-  const stats: ConsumerStats = { delivered: 0, acked: 0, rejected: 0 };
-  void attach(ch, opts.tx, { crashBeforeAck: opts.crashBeforeAck }, stats).catch(() => undefined);
+  let stopped = false;
+  let current: { conn: ChannelModel; ch: Channel } | null = null;
+  let wakeRestart: (() => void) | undefined;
+  const onError = opts.onError ?? ((err: unknown) => console.error(err));
+
+  current = await open(opts.brokerUrl);
+
+  const loop = (async () => {
+    while (!stopped) {
+      try {
+        if (!current) current = await open(opts.brokerUrl);
+        if (stopped) break;
+        const stats: ConsumerStats = { delivered: 0, acked: 0, rejected: 0 };
+        await attach(current.ch, opts.tx, { crashBeforeAck: opts.crashBeforeAck }, stats);
+      } catch (err) {
+        if (!stopped) onError(err);
+      } finally {
+        const dying = current;
+        current = null;
+        await safeClose(dying);
+      }
+      if (stopped) break;
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, RESTART_DELAY_MS);
+        wakeRestart = () => {
+          clearTimeout(timer);
+          wakeRestart = undefined;
+          resolve();
+        };
+      });
+    }
+  })();
+
   return {
     close: async () => {
-      try {
-        await conn.close();
-      } catch {
-        // Already closed.
-      }
+      stopped = true;
+      wakeRestart?.();
+      const dying = current;
+      current = null;
+      await safeClose(dying);
+      await loop;
     },
   };
 }
