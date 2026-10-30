@@ -3,6 +3,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Headers,
   HttpCode,
   NotFoundException,
   Param,
@@ -100,8 +101,12 @@ export class OrdersController {
 
   @Post()
   @HttpCode(201)
-  async create(@Body() dto: CreateOrderDto, @Res({ passthrough: true }) res: Response) {
-    const order = await this.ordersService.create(dto);
+  async create(
+    @Body() dto: CreateOrderDto,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const order = await this.ordersService.create(dto, idempotencyKey);
     res.setHeader('Location', `/orders/${order.id}`);
     return order;
   }
