@@ -90,6 +90,38 @@ CREATE TABLE order_placed_deliveries (
   received_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Transactional outbox. The order row and this row share one COMMIT.
+-- published_at NULL means the relay has not handed the event to the broker yet.
+-- Snake_case columns: a later Debezium router sets route.by.field to aggregate_type.
+CREATE TABLE outbox (
+  id             bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  aggregate_type text        NOT NULL,
+  aggregate_id   text        NOT NULL,
+  type           text        NOT NULL,
+  payload        jsonb       NOT NULL,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  published_at   timestamptz,
+  attempts       integer     NOT NULL DEFAULT 0 CHECK (attempts >= 0)
+);
+
+CREATE INDEX idx_outbox_unpublished ON outbox (created_at, id) WHERE published_at IS NULL;
+
+-- The header Idempotency-Key, not a hash of the body. Same key, one order.
+CREATE TABLE idempotency_keys (
+  key         text        PRIMARY KEY,
+  fingerprint text        NOT NULL,
+  order_id    bigint,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+-- Inbox. The mark and the effect commit together in the consumer.
+CREATE TABLE processed_messages (
+  message_id   text        NOT NULL,
+  consumer     text        NOT NULL,
+  processed_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (message_id, consumer)
+);
+
 -- The application connects as app_user (created by db/init.sql when the
 -- container initialises its volume). Guarded so the schema also applies to a
 -- Postgres where that role was never created. The TypeORM migration carries

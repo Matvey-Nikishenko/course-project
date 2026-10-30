@@ -32,6 +32,7 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | 2026-10-07 | Integration isolation is TRUNCATE, not ROLLBACK | Nest/TypeORM use a connection pool; a ROLLBACK on one Client would not undo checkout writes. |
 | 2026-10-17 | Order-status notifications go out on one in-process bus | WebSocket rooms and SSE both subscribe to `OrderEventsService`. A second API instance cannot see those rooms. |
 | 2026-10-22 | `order.placed` is at-least-once plus an idempotent insert | RabbitMQ does not offer exactly-once delivery. The effect is `INSERT … ON CONFLICT (event_id) DO NOTHING`, so a redelivery applies once. |
+| 2026-10-27 | Checkout and `order.placed` share one database COMMIT | The broker cannot join that transaction. A relay publishes only after commit, and the consumer dedupes the extra delivery. |
 
 ## Configuration
 
@@ -509,6 +510,49 @@ effect=1
 skipped=1
 ```
 
+## Outbox та ідемпотентність
+
+Checkout no longer publishes to RabbitMQ. Inside the same database transaction it writes the order and one `outbox` row. The payload is the `order.placed` contract (`eventId`, `type`, `occurredAt`, `data`), built by `orderPlacedEvent`, not a spread of the ORM entity. `published_at` stays NULL until a relay has handed the event to the broker. There is no `publish` call inside the transaction: the broker cannot roll back.
+
+The relay is polling. It takes unpublished rows with `SELECT … WHERE published_at IS NULL ORDER BY created_at, id FOR UPDATE SKIP LOCKED LIMIT 10`, publishes, then sets `published_at`. `SKIP LOCKED` lets a second worker take other rows. A bare `FOR UPDATE` would serialize them and deliver nothing in parallel. `SKIP LOCKED` also does not promise a global delivery order. One order emits one event, so this stream does not need one.
+
+The API edge still reads the `Idempotency-Key` header. The key is stored in `idempotency_keys` and identifies the attempt, not a hash of the body. Two requests with the same key insert one order and one outbox row. A body hash used as the key would collapse two legitimate identical orders into one. A different body under the same key is still rejected.
+
+The consumer keeps two layers in one transaction. The effect is `INSERT` into `order_placed_effects` with `ON CONFLICT (event_id) DO NOTHING`. The inbox mark is `INSERT` into `processed_messages (message_id, consumer)` with `ON CONFLICT DO NOTHING`. A repeat sees the mark and does not apply the effect again.
+
+`demo:crash-write` throws inside the checkout transaction after the outbox insert. Both the order and the outbox row roll back, so nothing is published.
+
+`demo:crash-relay` throws after `publish` and before `UPDATE published_at`. The database transaction rolls back, the broker message stays, and the next relay publishes that same row again. That is the simulated crash from lecture step 8, not `kill -9`.
+
+Swapping those two steps loses events. If the relay sets `published_at` and then publishes, a failed publish leaves the row marked and the event never goes out. A crash between publish and the mark delivers twice. A duplicate is repaired by the idempotent consumer. A lost event is not.
+
+Rows with `published_at` older than 7 days are deleted by the relay. The partial index `WHERE published_at IS NULL` only stays small if published rows do not pile up. Column names are snake_case. A later Debezium Outbox Event Router would set `route.by.field` to `aggregate_type` (its default looks for `aggregatetype`).
+
+The three runs below are from this stand. Stop `npm start` first: its relay and consumer share this outbox and this queue.
+
+```
+requests=2
+orders=1
+outbox=1
+published=1
+deliveries=1
+effect=1
+processed=1
+
+write-failed=1
+orders=0
+outbox=0
+published=0
+deliveries=0
+effect=0
+
+published=2
+deliveries=2
+applied=1
+effect=1
+processed=1
+```
+
 ## Grading
 
 ```bash
@@ -534,6 +578,10 @@ export BROKER_URL=amqp://app:app@127.0.0.1:5672
 npm run demo:publish
 npm run demo:dlq
 npm run demo:duplicate
+
+npm run demo:outbox
+npm run demo:crash-write
+npm run demo:crash-relay
 
 export DATABASE_URL=postgres://admin:admin-bootstrap-only@127.0.0.1:6432/marketplace
 export SKIP_VAULT=1

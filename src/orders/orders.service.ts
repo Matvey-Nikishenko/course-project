@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   ConflictException,
   Injectable,
@@ -6,12 +7,10 @@ import {
 } from '@nestjs/common';
 import { CursorPageQueryDto } from '../common/dto/cursor-page-query.dto';
 import { paginate } from '../common/pagination/pagination';
-import { CheckoutRejected, checkout } from '../checkout';
+import { CheckoutRejected, IdempotencyReuse, checkout } from '../checkout';
 import { Order as OrderRow } from '../entities/order';
 import { User } from '../entities/user';
 import { TypeormService } from '../typeorm/typeorm.service';
-import { OrderPlacedPublisherService } from '../broker/order-placed-publisher.service';
-import { orderPlacedEvent } from '../broker/order-placed';
 import { OrderEventsService } from './order-events.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderStatusName } from './dto/update-order-status.dto';
@@ -22,7 +21,6 @@ export class OrdersService {
   constructor(
     private readonly typeorm: TypeormService,
     private readonly orderEvents: OrderEventsService,
-    private readonly orderPlaced: OrderPlacedPublisherService,
   ) {}
 
   async list(query: CursorPageQueryDto) {
@@ -51,7 +49,7 @@ export class OrdersService {
     return this.toHttp(row);
   }
 
-  async create(dto: CreateOrderDto): Promise<Order> {
+  async create(dto: CreateOrderDto, idempotencyKey?: string): Promise<Order> {
     const buyer = await this.typeorm.ds.getRepository(User).findOne({
       where: { id: String(dto.buyer_id) },
     });
@@ -63,25 +61,26 @@ export class OrdersService {
     }
 
     try {
+      const key = idempotencyKey?.trim();
       const { orderId } = await checkout(this.typeorm.ds, {
         buyerId: buyer.id,
         items: dto.items.map((item) => ({
           productId: String(item.product_id),
           quantity: item.quantity,
         })),
+        idempotencyKey: key || undefined,
+        fingerprint: key
+          ? createHash('sha256').update(JSON.stringify(dto)).digest('hex')
+          : undefined,
       });
-      const order = await this.findOne(Number(orderId));
-      await this.orderPlaced.publish(
-        orderPlacedEvent({
-          orderId: order.id,
-          buyerId: order.buyer_id,
-          totalCents: order.total_cents,
-          status: order.status,
-          occurredAt: order.created_at,
-        }),
-      );
-      return order;
+      return this.findOne(Number(orderId));
     } catch (err) {
+      if (err instanceof IdempotencyReuse) {
+        throw new UnprocessableEntityException({
+          code: 'idempotency-key-reuse',
+          detail: 'This Idempotency-Key was already used with a different request body',
+        });
+      }
       if (err instanceof CheckoutRejected) {
         if (err.code === 'unknown_product') {
           throw new UnprocessableEntityException({

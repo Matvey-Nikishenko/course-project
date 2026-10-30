@@ -19,6 +19,8 @@ function rowsOf(raw: unknown): Record<string, unknown>[] {
   return [];
 }
 
+export const ORDER_PLACED_CONSUMER = 'order-placed';
+
 export async function ensureEffectTables(q: Queryable): Promise<void> {
   await q.query(`
     CREATE TABLE IF NOT EXISTS order_placed_effects (
@@ -32,6 +34,14 @@ export async function ensureEffectTables(q: Queryable): Promise<void> {
       id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
       event_id text NOT NULL,
       received_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await q.query(`
+    CREATE TABLE IF NOT EXISTS processed_messages (
+      message_id text NOT NULL,
+      consumer text NOT NULL,
+      processed_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (message_id, consumer)
     )
   `);
 }
@@ -55,17 +65,24 @@ export async function countEvents(q: Queryable, table: 'order_placed_effects' | 
  */
 export async function applyOrderPlaced(tx: Tx, event: OrderPlacedEvent): Promise<'applied' | 'skipped'> {
   return tx.transaction(async (q) => {
-    const inserted = rowsOf(
+    await q.query(`INSERT INTO order_placed_deliveries (event_id) VALUES ($1)`, [event.eventId]);
+    const marked = rowsOf(
       await q.query(
-        `INSERT INTO order_placed_effects (event_id, order_id)
+        `INSERT INTO processed_messages (message_id, consumer)
          VALUES ($1, $2)
-         ON CONFLICT (event_id) DO NOTHING
-         RETURNING event_id`,
-        [event.eventId, event.data.orderId],
+         ON CONFLICT (message_id, consumer) DO NOTHING
+         RETURNING message_id`,
+        [event.eventId, ORDER_PLACED_CONSUMER],
       ),
     );
-    await q.query(`INSERT INTO order_placed_deliveries (event_id) VALUES ($1)`, [event.eventId]);
-    return inserted.length > 0 ? 'applied' : 'skipped';
+    if (marked.length === 0) return 'skipped';
+    await q.query(
+      `INSERT INTO order_placed_effects (event_id, order_id)
+       VALUES ($1, $2)
+       ON CONFLICT (event_id) DO NOTHING`,
+      [event.eventId, event.data.orderId],
+    );
+    return 'applied';
   });
 }
 
