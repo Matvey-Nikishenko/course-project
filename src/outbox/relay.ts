@@ -23,9 +23,10 @@ function eventFromPayload(payload: unknown): OrderPlacedEvent {
 }
 
 /**
- * Polls the outbox. Publish happens before published_at is set, on purpose:
- * a crash in between delivers twice, and the consumer's idempotent effect
- * collapses that back to one. The other order loses the event.
+ * Polls the outbox. attempts is committed before publish, so a crash between
+ * publish and published_at still counts. published_at is set only after the
+ * broker confirms. A crash in between delivers twice; the consumer collapses
+ * that back to one effect.
  */
 export async function relayOutbox(
   ds: DataSource,
@@ -33,8 +34,7 @@ export async function relayOutbox(
   opts?: { limit?: number; crashAfterPublish?: boolean; aggregateId?: string },
 ): Promise<number> {
   const limit = opts?.limit ?? RELAY_BATCH;
-  let published = 0;
-  await ds.transaction(async (manager) => {
+  const claimed = await ds.transaction(async (manager) => {
     const rows = rowsOf<{ id: string; payload: unknown }>(
       await manager.query(
         `SELECT id, payload
@@ -48,17 +48,24 @@ export async function relayOutbox(
       ),
     );
     for (const row of rows) {
-      await publish(eventFromPayload(row.payload));
-      published += 1;
-      if (opts?.crashAfterPublish) throw new RelayCrashed();
-      await manager.query(
-        `UPDATE outbox SET published_at = now(), attempts = attempts + 1 WHERE id = $1`,
-        [row.id],
-      );
+      await manager.query(`UPDATE outbox SET attempts = attempts + 1 WHERE id = $1`, [row.id]);
     }
+    return rows;
   });
-  await ds.query(
-    `DELETE FROM outbox WHERE published_at IS NOT NULL AND published_at < now() - interval '7 days'`,
-  );
+
+  let published = 0;
+  for (const row of claimed) {
+    await publish(eventFromPayload(row.payload));
+    published += 1;
+    if (opts?.crashAfterPublish) throw new RelayCrashed();
+    await ds.query(`UPDATE outbox SET published_at = now() WHERE id = $1 AND published_at IS NULL`, [
+      row.id,
+    ]);
+  }
   return published;
+}
+
+/** Hourly maintenance. Not on the relay tick: that predicate would seq-scan every 2s. */
+export async function purgePublishedOutbox(ds: DataSource): Promise<void> {
+  await ds.query(`DELETE FROM outbox WHERE published_at < now() - interval '7 days'`);
 }

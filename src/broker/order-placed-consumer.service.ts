@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { Env } from '../config/env.schema';
 import { TypeormService } from '../typeorm/typeorm.service';
+import { outboxWorkersEnabled } from '../outbox/autostart';
 import { configuredBrokerUrl } from './broker-url';
 import { startBackgroundConsumer } from './consume-order-placed';
 import { dataSourceTx, ensureEffectTables } from './effects';
@@ -18,7 +19,7 @@ export class OrderPlacedConsumerService implements OnModuleInit, OnModuleDestroy
 
   async onModuleInit(): Promise<void> {
     const url = configuredBrokerUrl(this.config.get('BROKER_URL', { infer: true }));
-    if (!url) return;
+    if (!url || !outboxWorkersEnabled()) return;
     const tx = dataSourceTx(this.typeorm.ds);
     await ensureEffectTables(tx);
     const consumer = await startBackgroundConsumer({

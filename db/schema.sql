@@ -106,6 +106,9 @@ CREATE TABLE outbox (
 
 CREATE INDEX idx_outbox_unpublished ON outbox (created_at, id) WHERE published_at IS NULL;
 
+-- Purge of already-published rows. The relay poll uses the other partial index.
+CREATE INDEX idx_outbox_published ON outbox (published_at) WHERE published_at IS NOT NULL;
+
 -- The header Idempotency-Key, not a hash of the body. Same key, one order.
 CREATE TABLE idempotency_keys (
   key         text        PRIMARY KEY,

@@ -17,6 +17,11 @@ export const OUTBOX_STATEMENTS = [
       WHERE published_at IS NULL
   `,
   `
+    CREATE INDEX IF NOT EXISTS idx_outbox_published
+      ON outbox (published_at)
+      WHERE published_at IS NOT NULL
+  `,
+  `
     CREATE TABLE IF NOT EXISTS idempotency_keys (
       key text PRIMARY KEY,
       fingerprint text NOT NULL,

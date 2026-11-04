@@ -1,7 +1,8 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Env } from '../config/env.schema';
-import { relayOutbox } from '../outbox/relay';
+import { outboxWorkersEnabled } from '../outbox/autostart';
+import { purgePublishedOutbox, relayOutbox } from '../outbox/relay';
 import { TypeormService } from '../typeorm/typeorm.service';
 import { configuredBrokerUrl } from './broker-url';
 import { OrderPlacedEvent } from './order-placed';
@@ -17,6 +18,7 @@ export class OrderPlacedPublisherService implements OnModuleInit, OnModuleDestro
   private disposed = false;
   private ticking = false;
   private timer: NodeJS.Timeout | undefined;
+  private purgeTimer: NodeJS.Timeout | undefined;
 
   constructor(
     private readonly config: ConfigService<Env, true>,
@@ -25,21 +27,34 @@ export class OrderPlacedPublisherService implements OnModuleInit, OnModuleDestro
 
   async onModuleInit(): Promise<void> {
     this.url = configuredBrokerUrl(this.config.get('BROKER_URL', { infer: true }));
-    if (!this.url) return;
+    if (!this.url || !outboxWorkersEnabled()) return;
     await this.ensure();
     this.timer = setInterval(() => {
       void this.tick();
     }, 2000);
     this.timer.unref();
+    this.purgeTimer = setInterval(() => {
+      void this.purge();
+    }, 60 * 60 * 1000);
+    this.purgeTimer.unref();
   }
 
   async onModuleDestroy(): Promise<void> {
     this.disposed = true;
     if (this.timer) clearInterval(this.timer);
+    if (this.purgeTimer) clearInterval(this.purgeTimer);
     this.opening = null;
     const current = this.publisher;
     this.publisher = null;
     if (current) await current.close();
+  }
+
+  private async purge(): Promise<void> {
+    try {
+      await purgePublishedOutbox(this.typeorm.ds);
+    } catch (err) {
+      this.logger.error(`outbox purge failed: ${this.messageOf(err)}`);
+    }
   }
 
   private async tick(): Promise<void> {
