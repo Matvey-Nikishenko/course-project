@@ -33,6 +33,7 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | 2026-10-17 | Order-status notifications go out on one in-process bus | WebSocket rooms and SSE both subscribe to `OrderEventsService`. A second API instance cannot see those rooms. |
 | 2026-10-22 | `order.placed` is at-least-once plus an idempotent insert | RabbitMQ does not offer exactly-once delivery. The effect is `INSERT … ON CONFLICT (event_id) DO NOTHING`, so a redelivery applies once. |
 | 2026-10-27 | Checkout and `order.placed` share one database COMMIT | The broker cannot join that transaction. A relay publishes only after commit, and the consumer dedupes the extra delivery. |
+| 2026-11-05 | Two Redis processes: cache is `allkeys-lru`, queue is `noeviction` | `maxmemory-policy` is one setting for the whole process. Sessions and the BullMQ queue sit on the noeviction instance so a cache eviction cannot drop them. |
 
 ## Configuration
 
@@ -63,6 +64,8 @@ build context.
 | `DB_PASSWORD` | no | empty string | **HW#11 store** | Password. No literal in `data-source.ts`. |
 | `DB_NAME` | **yes** (TypeORM CLI) | — | **HW#11 store** | Database. Here: `marketplace`. |
 | `BROKER_URL` | no | absent, checkout does not publish | **HW#11 store** | AMQP URL, `amqp://user:pass@host:5672`. Port **5672** is AMQP. **15672** is the management UI and does not speak AMQP. |
+| `REDIS_URL` | no | absent, product reads skip the cache | **HW#11 store** | Cache Redis. Compose publishes **6379**, `maxmemory` 32mb, `maxmemory-policy allkeys-lru`. |
+| `REDIS_QUEUE_URL` | no | absent, no sessions, shared limit, or BullMQ | **HW#11 store** | Queue Redis. Compose publishes **6380**, `maxmemory-policy noeviction`, AOF `everysec`. Sessions and the rate-limit counter live here too. |
 
 `DB_URL`, `DB_PASSWORD_FILE`, and the TypeORM `DB_*` keys come from the HW#11
 store; they are not in git. Container dev credentials stay in
@@ -553,6 +556,55 @@ effect=1
 processed=1
 ```
 
+## Redis: кеш, сесії, ліміти, черга
+
+The cached read is the product card: the listing, the seller, the stock, units sold, and a rating derived from those sales. A miss loads that row from Postgres and stores it. A hit reads Redis only. The TTL is `300 + random(0..60)` seconds, so a batch of keys warmed together does not expire on the same second. A write (checkout) also deletes the card; the TTL stays in place either way.
+
+A cold key takes a single-flight lock: `SET lock:… <token> NX PX`. The winner loads the card. Everyone else waits and reads the cache. The lock is removed with a Lua compare-and-delete of that token. A plain `DEL` would remove a lock that already belongs to the next waiter.
+
+Sessions are on the queue Redis, read with `GETEX`, which moves the TTL forward on each request (`x-session-id`). The cache instance is `allkeys-lru` and will eventually evict a session while the user is still active. The queue instance is `noeviction`, so a session stays until its own TTL. A third Redis would also do that. The queue box already has the policy a session needs.
+
+The limit is a sliding window in one Lua script (`ZREMRANGEBYSCORE`, `ZCARD`, `ZADD`). A fixed window lets a client spend the whole limit at the end of a minute and again at the start of the next. This limit is there to refuse that burst. Two API processes share the counter. Over the limit the response is 429 with `Retry-After`.
+
+BullMQ runs on the queue Redis. A rating recalculation is `attempts: 5` with exponential backoff and jitter, and a `jobId` so a second `add` of the same order is the same job. Completed jobs are kept for an hour (`removeOnComplete: { age }`). Removing them immediately would forget the `jobId` and the dedup would stop. The hourly sweep is `upsertJobScheduler`, so a restart updates that scheduler instead of adding another one. The worker uses `maxRetriesPerRequest: null` so a dropped Redis connection waits instead of killing the process.
+
+The cache and the queue are two containers. `maxmemory-policy` is one value for the whole Redis process, and `SELECT` does not split it. The cache needs `allkeys-lru` and a memory cap, or it grows until writes throw. BullMQ needs `noeviction`, or Redis can delete a job key out from under the queue. The queue box also turns on AOF `everysec`.
+
+If the stampede lock fails, two requests both read the product card from Postgres and both write the cache. The card is a pure read, so the extra query is the cost and the stock figure is still the one the database committed. Checkout does not use this lock. The stock debit is one `UPDATE` in the order transaction, and that still holds when Redis is empty.
+
+```
+cache-lru=1
+cache-maxmemory=1
+warmed=60
+ttl-distinct=36
+concurrent=20
+db-calls=1
+db-calls-warm=0
+
+requests=3
+sessions=1
+in-redis=1
+ttl-renewed=1
+
+instances=2
+limit=5
+requests=7
+allowed=5
+blocked=2
+status=429
+retry-after=1
+
+queue-noeviction=1
+attempts=3
+completed=1
+added=2
+queued=1
+schedulers=1
+scheduled-runs=2
+```
+
+`ttl-distinct` moves from run to run. On this stand it was 36. The floor is 5.
+
 ## Grading
 
 ```bash
@@ -583,6 +635,13 @@ npm run demo:outbox
 npm run demo:crash-write
 npm run demo:crash-relay
 
+export REDIS_URL=redis://127.0.0.1:6379
+export REDIS_QUEUE_URL=redis://127.0.0.1:6380
+npm run demo:cache
+npm run demo:session
+npm run demo:ratelimit
+npm run demo:queue
+
 export DATABASE_URL=postgres://admin:admin-bootstrap-only@127.0.0.1:6432/marketplace
 export SKIP_VAULT=1
 bash scripts/with-secrets.sh dev bash scripts/backup.sh
@@ -595,8 +654,9 @@ so a bare `bash scripts/backup.sh` after the same `export` is equivalent.
 
 Stand credentials are `admin` / `admin-bootstrap-only` / `marketplace`. The
 app and scripts use host port **6432** (PgBouncer). Direct Postgres stays on
-**5433** for rotate/admin. Those values are not store secrets: the container
-is thrown away with `down -v`.
+**5433** for rotate/admin. The cache Redis is **6379** (`allkeys-lru`). The
+queue Redis is **6380** (`noeviction`). Those values are not store secrets:
+the containers are thrown away with `down -v`.
 
 ## HW#9
 

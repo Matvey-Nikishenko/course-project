@@ -21,6 +21,14 @@ export const envSchema = z.object({
   // Optional. Absent, the API does not publish. The value comes from the HW#11
   // store (or the grading export). AMQP has no separate password file here.
   BROKER_URL: z.url({ protocol: /^amqp$/ }).optional(),
+
+  // Optional. Absent, product reads skip the cache. Cache instance only:
+  // allkeys-lru. The live value comes from the HW#11 store.
+  REDIS_URL: z.url({ protocol: /^rediss?$/ }).optional(),
+
+  // Optional. Absent, there is no session store, shared limit, or BullMQ worker.
+  // Queue instance: maxmemory-policy noeviction. Same HW#11 store.
+  REDIS_QUEUE_URL: z.url({ protocol: /^rediss?$/ }).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

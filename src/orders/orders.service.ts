@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { CursorPageQueryDto } from '../common/dto/cursor-page-query.dto';
 import { paginate } from '../common/pagination/pagination';
+import { CacheService } from '../cache/cache.service';
 import { CheckoutRejected, IdempotencyReuse, checkout } from '../checkout';
 import { Order as OrderRow } from '../entities/order';
 import { User } from '../entities/user';
@@ -21,6 +22,7 @@ export class OrdersService {
   constructor(
     private readonly typeorm: TypeormService,
     private readonly orderEvents: OrderEventsService,
+    private readonly cache: CacheService,
   ) {}
 
   async list(query: CursorPageQueryDto) {
@@ -73,6 +75,7 @@ export class OrdersService {
           ? createHash('sha256').update(JSON.stringify(dto)).digest('hex')
           : undefined,
       });
+      await this.cache.invalidate(dto.items.map((item) => item.product_id));
       return this.findOne(Number(orderId));
     } catch (err) {
       if (err instanceof IdempotencyReuse) {
