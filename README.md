@@ -34,6 +34,7 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | 2026-10-22 | `order.placed` is at-least-once plus an idempotent insert | RabbitMQ does not offer exactly-once delivery. The effect is `INSERT … ON CONFLICT (event_id) DO NOTHING`, so a redelivery applies once. |
 | 2026-10-27 | Checkout and `order.placed` share one database COMMIT | The broker cannot join that transaction. A relay publishes only after commit, and the consumer dedupes the extra delivery. |
 | 2026-11-05 | Two Redis processes: cache is `allkeys-lru`, queue is `noeviction` | `maxmemory-policy` is one setting for the whole process. Sessions and the BullMQ queue sit on the noeviction instance so a cache eviction cannot drop them. |
+| 2026-11-09 | Access tokens are ES256 JWTs; refresh tokens are opaque and hashed | OWASP marks RS256 “Not recommended”. Verification passes `algorithms: ['ES256']`. Logout revokes the refresh family and the access `jti` in one Postgres commit. |
 
 ## Configuration
 
@@ -605,12 +606,88 @@ scheduled-runs=2
 
 `ttl-distinct` moves from run to run. On this stand it was 36. The floor is 5.
 
+## Auth
+
+Login returns a pair. The access token is an ES256 JWT that lives 10 minutes.
+The refresh token is a random string, not a JWT. The database stores
+`HMAC-SHA256(pepper, token)`, so a dump of `refresh_tokens` is not a dump of
+live sessions. ES256 is the signature algorithm because OWASP marks RS256 as
+“Not recommended” and prefers ES256, PS256, or EdDSA. Verification always
+passes `algorithms: ['ES256']` (RFC 8725 §3.1). A token whose payload was
+rewritten and whose old signature was left in place is rejected.
+
+Every refresh token from one login shares a `family_id`. A successful refresh
+marks the presented token `used_at` and inserts the successor in the same
+transaction. Presenting a token that already has `used_at` is reuse: the
+transaction revokes every row in that family, commits, and then the request
+returns 401. There is no grace window. Two parallel refreshes of the same
+token look like theft, and the client has to serialize refresh onto one
+promise. The role on the access token is a cache. A demoted admin stays an
+admin until that access token's `exp`. The next refresh reads `users.role`
+again and the new access token carries the new role.
+
+Logout is two actions because the two tokens are not the same kind of secret.
+The refresh token is a row, so `revoked_at` on the family is enough. The
+access token is self-contained and stays valid until `exp`, so its `jti` goes
+onto `access_denylist` with `expires_at` equal to that `exp`. Both writes are
+one Postgres commit. Putting the denylist in Redis and the family revoke in
+Postgres would be a dual write: one of the two can succeed and the other can
+fail, and the session would look dead in one store and alive in the other.
+
+`kid` is how a signing key rotates without a gap. The verifier accepts the
+current `JWT_KID`. During an overlap the previous public key would be accepted
+for the access tokens still inside their 10 minute TTL, and new tokens would
+be signed by the new key. Refresh tokens are not signed by this key, so they
+do not care which `kid` is current. This build keeps one current key. A header
+`kid` that is not `JWT_KID` is 401.
+
+Ownership is not a guard. The guard runs before the order row exists in the
+handler, and it does not know `buyer_id`. `OrdersService.findOne` loads the
+row, returns 404 when it is missing, and returns 403 when the token's subject
+is a different buyer. Role checks are the other way around: `RolesGuard` only
+needs the role cached on the token, so `POST /products` is seller or admin,
+and a buyer gets 403. A missing or broken token is 401 on both routes.
+
+Public-key fingerprints (SHA-256 of the SPKI PEM). Dev and prod are different
+keys. These are not the private keys, and the grader generates its own pair.
+
+```text
+dev  2283d49b714df0209d3bae33616ebd50cd9f8dffd7d0f4706192cb894673e9a3
+prod a427556623568d453ae04546261bc462b7bebf77c346f44d2d1fb0f56b2b510f
+```
+
+| Змінна | Джерело | Навіщо |
+| --- | --- | --- |
+| `JWT_KID` | сховище (#11) | which signing key verified this access token |
+| `JWT_PRIVATE_KEY` | сховище (#11) | base64 of the PKCS#8 PEM; signs access tokens |
+| `JWT_PUBLIC_KEY` | сховище (#11) | base64 of the SPKI PEM; verifies access tokens |
+| `REFRESH_TOKEN_PEPPER` | сховище (#11) | HMAC pepper for refresh-token hashes |
+
+`npm run start` does not open the store. Without those four variables it
+exits non-zero and names the one that is missing. `npm run start:vault`,
+`demo:auth`, `demo:reuse`, and `demo:rbac` go through
+`scripts/with-secrets.sh`.
+
 ## Grading
 
 ```bash
 docker compose up -d --wait
 export DB_HOST=127.0.0.1 DB_PORT=6432 DB_USER=admin DB_PASSWORD=admin-bootstrap-only DB_NAME=marketplace
 export SKIP_VAULT=1    # grader has no access to the store
+
+# One-off ES256 pair. The real signing key stays in the store.
+# PEM is base64 so a multiline export does not break the decoder.
+node -e 'const {generateKeyPairSync}=require("node:crypto");
+const k=generateKeyPairSync("ec",{namedCurve:"P-256",
+  privateKeyEncoding:{type:"pkcs8",format:"pem"},
+  publicKeyEncoding:{type:"spki",format:"pem"}});
+const fs=require("node:fs");
+fs.writeFileSync("/tmp/priv.b64",Buffer.from(k.privateKey).toString("base64"));
+fs.writeFileSync("/tmp/pub.b64",Buffer.from(k.publicKey).toString("base64"));'
+export JWT_KID=grader
+export JWT_PRIVATE_KEY="$(cat /tmp/priv.b64)"
+export JWT_PUBLIC_KEY="$(cat /tmp/pub.b64)"
+export REFRESH_TOKEN_PEPPER=grader-pepper
 
 npm ci
 npx tsc --noEmit
@@ -641,6 +718,10 @@ npm run demo:cache
 npm run demo:session
 npm run demo:ratelimit
 npm run demo:queue
+
+npm run demo:auth
+npm run demo:reuse
+npm run demo:rbac
 
 export DATABASE_URL=postgres://admin:admin-bootstrap-only@127.0.0.1:6432/marketplace
 export SKIP_VAULT=1

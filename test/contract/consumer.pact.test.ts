@@ -14,7 +14,11 @@ describe('Pact consumer: web-app ↔ marketplace-api', () => {
     provider
       .given('order 1 exists')
       .uponReceiving('a request for order 1')
-      .withRequest({ method: 'GET', path: '/orders/1' })
+      .withRequest({
+        method: 'GET',
+        path: '/orders/1',
+        headers: { Authorization: 'Bearer access-token' },
+      })
       .willRespondWith({
         status: 200,
         headers: {
@@ -36,7 +40,9 @@ describe('Pact consumer: web-app ↔ marketplace-api', () => {
       });
 
     await provider.executeTest(async (mockServer) => {
-      const res = await fetch(`${mockServer.url}/orders/1`);
+      const res = await fetch(`${mockServer.url}/orders/1`, {
+        headers: { Authorization: 'Bearer access-token' },
+      });
       expect(res.status).toBe(200);
       const body = (await res.json()) as { id: number; status: string };
       expect(body.id).toEqual(expect.any(Number));

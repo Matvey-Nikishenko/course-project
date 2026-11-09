@@ -29,6 +29,15 @@ export const envSchema = z.object({
   // Optional. Absent, there is no session store, shared limit, or BullMQ worker.
   // Queue instance: maxmemory-policy noeviction. Same HW#11 store.
   REDIS_QUEUE_URL: z.url({ protocol: /^rediss?$/ }).optional(),
+
+  // Required. No default: a default would be a signing key baked into the code.
+  // PEM bytes, base64-encoded, from the HW#11 store. ES256 PKCS#8.
+  JWT_KID: z.string().min(1),
+  JWT_PRIVATE_KEY: z.string().min(1),
+  JWT_PUBLIC_KEY: z.string().min(1),
+
+  // Required. HMAC pepper for refresh-token hashes. Not a default.
+  REFRESH_TOKEN_PEPPER: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;

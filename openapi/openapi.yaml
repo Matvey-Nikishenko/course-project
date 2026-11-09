@@ -9,6 +9,56 @@ servers:
     description: Local in-memory server for HW#9
 security: []
 paths:
+  /auth/login:
+    post:
+      operationId: login
+      summary: Exchange email and password for an access and refresh pair
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: A fresh pair. expires_in is the access-token lifetime in seconds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      operationId: refresh
+      summary: Rotate a refresh token and issue a new pair
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: The previous refresh token is now used. The new pair stays in the same family.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke the refresh family and denylist the presented access token
+      responses:
+        '204':
+          description: Both tokens of this session are dead.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /products:
     get:
       operationId: listProducts
@@ -26,6 +76,31 @@ paths:
                 $ref: '#/components/schemas/ProductPage'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: createProduct
+      tags: [products]
+      summary: Create a product. Seller or admin only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProduct'
+      responses:
+        '201':
+          description: The product that was stored.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /products/{id}:
@@ -119,6 +194,10 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /orders/{id}:
@@ -139,6 +218,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
     patch:
@@ -269,6 +352,18 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Missing, expired, or invalid token
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Token is valid and the caller is not allowed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     InternalServerError:
       description: >
         Unexpected server error. Also returned when a response fails validation
@@ -335,6 +430,54 @@ components:
           type: string
           description: Reference to this occurrence (request path)
           example: /orders
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          minLength: 3
+        password:
+          type: string
+          minLength: 1
+    RefreshRequest:
+      type: object
+      additionalProperties: false
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          minLength: 1
+    TokenPair:
+      type: object
+      additionalProperties: false
+      required: [access_token, refresh_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          minimum: 1
+    CreateProduct:
+      type: object
+      additionalProperties: false
+      required: [title, price_cents, stock]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        price_cents:
+          type: integer
+          minimum: 0
+        stock:
+          type: integer
+          minimum: 0
     Product:
       type: object
       additionalProperties: false
@@ -439,7 +582,7 @@ components:
         buyer_id:
           type: integer
           minimum: 1
-          description: Buyer placing the order. Until auth lands, the client sends the id in the body.
+          description: Must equal the subject of the access token. A mismatch is 403.
           example: 1
         items:
           type: array
