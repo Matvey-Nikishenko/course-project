@@ -4,6 +4,7 @@ import path from 'node:path';
 import { INestApplication } from '@nestjs/common';
 import { Verifier } from '@pact-foundation/pact';
 import { Pool } from 'pg';
+import { loadSigningKeys, signAccess } from '../../src/auth/tokens';
 import { PgHandle, startPg } from '../testkit/pg-container';
 
 const PROVIDER_PORT = 31601;
@@ -84,6 +85,15 @@ describe('Pact provider verification: marketplace-api', () => {
         },
       },
       logLevel: 'warn',
+      requestFilter: (req, _res, next) => {
+        const { token } = signAccess(loadSigningKeys(process.env), {
+          userId: '1',
+          role: 'buyer',
+          familyId: '00000000-0000-4000-8000-000000000001',
+        });
+        req.headers.authorization = `Bearer ${token}`;
+        next();
+      },
     }).verifyProvider();
 
     console.log('verifier:', output);

@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
+import { hashPassword } from '../../src/auth/passwords';
 import { ProductsRepo } from '../../src/repos/products.repo';
 import { UsersRepo } from '../../src/repos/users.repo';
 import { aProduct, aUser } from '../testkit/builders';
@@ -31,6 +32,18 @@ describe('E2E orders', () => {
     await truncateAll(pg.pool);
   });
 
+  async function accessToken(email: string): Promise<string> {
+    await pg.pool.query(`UPDATE users SET password_hash = $1 WHERE email = $2`, [
+      await hashPassword('e2e-password'),
+      email,
+    ]);
+    const res = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email, password: 'e2e-password' })
+      .expect(200);
+    return res.body.access_token as string;
+  }
+
   test('happy path: POST /orders → 201, GET /orders/:id → 200 same order', async () => {
     const users = new UsersRepo(pg.pool);
     const products = new ProductsRepo(pg.pool);
@@ -43,8 +56,11 @@ describe('E2E orders', () => {
       .withStock(5)
       .insertVia(products);
 
+    const token = await accessToken(buyer.email);
+
     const created = await request(app.getHttpServer())
       .post('/orders')
+      .set('Authorization', `Bearer ${token}`)
       .set('Idempotency-Key', `e2e-${Date.now()}`)
       .send({
         buyer_id: Number(buyer.id),
@@ -61,12 +77,19 @@ describe('E2E orders', () => {
 
     const fetched = await request(app.getHttpServer())
       .get(`/orders/${created.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
       .expect(200);
     expect(fetched.body).toEqual(created.body);
   });
 
   test('unknown order id → 404', async () => {
-    const res = await request(app.getHttpServer()).get('/orders/999999').expect(404);
+    const users = new UsersRepo(pg.pool);
+    const buyer = await aUser().withRole('buyer').insertVia(users);
+    const token = await accessToken(buyer.email);
+    const res = await request(app.getHttpServer())
+      .get('/orders/999999')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(404);
     expect(res.body).toMatchObject({
       status: 404,
       title: 'Not Found',

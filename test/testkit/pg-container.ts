@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from 'node:crypto';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -39,11 +40,32 @@ export function applyTestEnv(uri: string): void {
   process.env.DB_NAME = database;
   process.env.DB_POOL_MAX = process.env.DB_POOL_MAX ?? '5';
   process.env.LOG_LEVEL = process.env.LOG_LEVEL ?? 'error';
+  ensureTestAuthKeys();
+}
+
+function ensureTestAuthKeys(): void {
+  if (
+    process.env.JWT_KID &&
+    process.env.JWT_PRIVATE_KEY &&
+    process.env.JWT_PUBLIC_KEY &&
+    process.env.REFRESH_TOKEN_PEPPER
+  ) {
+    return;
+  }
+  const pair = generateKeyPairSync('ec', {
+    namedCurve: 'P-256',
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+  });
+  process.env.JWT_KID = 'test';
+  process.env.JWT_PRIVATE_KEY = Buffer.from(pair.privateKey).toString('base64');
+  process.env.JWT_PUBLIC_KEY = Buffer.from(pair.publicKey).toString('base64');
+  process.env.REFRESH_TOKEN_PEPPER = 'test-pepper';
 }
 
 export async function truncateAll(pool: Pool): Promise<void> {
   await pool.query(
-    'TRUNCATE jobs, order_items, orders, products, users RESTART IDENTITY CASCADE',
+    'TRUNCATE access_denylist, refresh_tokens, jobs, order_items, orders, products, users RESTART IDENTITY CASCADE',
   );
 }
 
