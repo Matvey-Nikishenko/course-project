@@ -1,8 +1,33 @@
 import { spawn } from 'node:child_process';
+import { INestApplication } from '@nestjs/common';
 import Redis from 'ioredis';
-import { bootApi, closeDemo } from './auth/demo-support';
 import { report } from './broker/demo-setup';
+import { createApp } from './configure-app';
 import { requiredRedisUrl } from './redis/url';
+
+function ensureDbUrl(): void {
+  if (process.env.DB_URL) return;
+  const user = process.env.DB_USER;
+  const host = process.env.DB_HOST;
+  const name = process.env.DB_NAME;
+  if (!user || !host || !name) return;
+  const port = process.env.DB_PORT ?? '5432';
+  process.env.DB_URL = `postgres://${user}@${host}:${port}/${name}`;
+}
+
+async function bootApi(): Promise<{ app: INestApplication; base: string }> {
+  process.env.OUTBOX_AUTOSTART = '0';
+  ensureDbUrl();
+  const app = await createApp();
+  await app.listen(0, '127.0.0.1');
+  const address = app.getHttpServer().address();
+  if (!address || typeof address === 'string') throw new Error('listen returned no port');
+  return { app, base: `http://127.0.0.1:${address.port}` };
+}
+
+async function closeDemo(app: INestApplication | undefined): Promise<void> {
+  if (app) await app.close().catch(() => undefined);
+}
 
 const LIMIT = 5;
 const WINDOW_MS = 10_000;
