@@ -1,7 +1,7 @@
 import { Channel, ChannelModel, connect } from 'amqplib';
 import { applyOrderPlaced, Tx } from './effects';
 import { PREFETCH, WORK_QUEUE } from './names';
-import { BadEvent, parseOrderPlaced } from './order-placed';
+import { BadEvent, OrderPlacedEvent, parseOrderPlaced } from './order-placed';
 import { assertTopology } from './topology';
 
 export type ConsumerStats = {
@@ -13,7 +13,11 @@ export type ConsumerStats = {
 async function attach(
   ch: Channel,
   tx: Tx,
-  opts: { crashBeforeAck?: boolean; stopAfter?: number },
+  opts: {
+    crashBeforeAck?: boolean;
+    stopAfter?: number;
+    afterEffect?: (event: OrderPlacedEvent) => Promise<void>;
+  },
   stats: ConsumerStats,
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
@@ -42,6 +46,13 @@ async function attach(
           try {
             const event = parseOrderPlaced(msg.content);
             await applyOrderPlaced(tx, event);
+            if (opts.afterEffect) {
+              try {
+                await opts.afterEffect(event);
+              } catch {
+                // The effect is already committed. A queue outage must not redeliver it.
+              }
+            }
             if (opts.crashBeforeAck) {
               await new Promise(() => undefined);
             }
@@ -139,6 +150,7 @@ export async function startBackgroundConsumer(opts: {
   tx: Tx;
   crashBeforeAck?: boolean;
   onError?: (err: unknown) => void;
+  afterEffect?: (event: OrderPlacedEvent) => Promise<void>;
 }): Promise<{ close: () => Promise<void> }> {
   let stopped = false;
   let current: { conn: ChannelModel; ch: Channel } | null = null;
@@ -153,7 +165,12 @@ export async function startBackgroundConsumer(opts: {
         if (!current) current = await open(opts.brokerUrl);
         if (stopped) break;
         const stats: ConsumerStats = { delivered: 0, acked: 0, rejected: 0 };
-        await attach(current.ch, opts.tx, { crashBeforeAck: opts.crashBeforeAck }, stats);
+        await attach(
+          current.ch,
+          opts.tx,
+          { crashBeforeAck: opts.crashBeforeAck, afterEffect: opts.afterEffect },
+          stats,
+        );
       } catch (err) {
         if (!stopped) onError(err);
       } finally {

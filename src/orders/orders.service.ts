@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { CursorPageQueryDto } from '../common/dto/cursor-page-query.dto';
 import { paginate } from '../common/pagination/pagination';
+import { CacheService } from '../cache/cache.service';
 import { CheckoutRejected, IdempotencyReuse, checkout } from '../checkout';
 import { Order as OrderRow } from '../entities/order';
 import { User } from '../entities/user';
@@ -21,6 +22,7 @@ export class OrdersService {
   constructor(
     private readonly typeorm: TypeormService,
     private readonly orderEvents: OrderEventsService,
+    private readonly cache: CacheService,
   ) {}
 
   async list(query: CursorPageQueryDto) {
@@ -62,6 +64,11 @@ export class OrdersService {
 
     try {
       const key = idempotencyKey?.trim();
+      const productIds = dto.items.map((item) => item.product_id);
+      // A reader can load the old card, pass the commit, and SET it after a
+      // single DEL. Drop the key before the write and again after the commit
+      // so that stale fill does not live for the whole TTL.
+      await this.cache.invalidate(productIds);
       const { orderId } = await checkout(this.typeorm.ds, {
         buyerId: buyer.id,
         items: dto.items.map((item) => ({
@@ -73,6 +80,7 @@ export class OrdersService {
           ? createHash('sha256').update(JSON.stringify(dto)).digest('hex')
           : undefined,
       });
+      await this.cache.invalidate(productIds);
       return this.findOne(Number(orderId));
     } catch (err) {
       if (err instanceof IdempotencyReuse) {

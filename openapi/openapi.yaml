@@ -28,6 +28,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /products/{id}:
     get:
       operationId: getProduct
@@ -48,6 +50,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /orders:
     get:
       operationId: listOrders
@@ -67,6 +71,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
     post:
       operationId: createOrder
       tags: [orders]
@@ -121,6 +127,8 @@ paths:
           $ref: '#/components/responses/UnprocessableEntity'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /orders/{id}:
     get:
       operationId: getOrder
@@ -141,6 +149,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
     patch:
       operationId: updateOrderStatus
       tags: [orders]
@@ -166,6 +176,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /health:
     get:
       operationId: getHealth
@@ -184,6 +196,8 @@ paths:
                 $ref: '#/components/schemas/Health'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /health/db:
     get:
       operationId: getDatabaseHealth
@@ -202,6 +216,8 @@ paths:
                 $ref: '#/components/schemas/DatabaseHealth'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 components:
@@ -265,6 +281,17 @@ components:
             $ref: '#/components/schemas/Problem'
     ServiceUnavailable:
       description: A dependency the request needs is not reachable right now
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: The shared sliding window for this client address is full
+      headers:
+        Retry-After:
+          description: Seconds until the oldest request leaves the window
+          schema:
+            type: string
       content:
         application/problem+json:
           schema:
