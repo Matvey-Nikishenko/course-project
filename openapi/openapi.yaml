@@ -59,6 +59,92 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /uploads/intent:
+    post:
+      operationId: createUploadIntent
+      tags: [uploads]
+      summary: Reserve an object key and a short presigned URL
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUploadIntent'
+      responses:
+        '200':
+          description: Pending upload. The object key was chosen by the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadIntent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /uploads/resume:
+    post:
+      operationId: resumeUpload
+      tags: [uploads]
+      summary: Presign only the multipart parts that are not in the store yet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitUpload'
+      responses:
+        '200':
+          description: URLs for the missing parts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResume'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /uploads/commit:
+    post:
+      operationId: commitUpload
+      tags: [uploads]
+      summary: HeadObject the bytes, then mark the row completed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitUpload'
+      responses:
+        '200':
+          description: The object is in the store and the row is completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadCommitted'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
   /products:
     get:
       operationId: listProducts
@@ -464,6 +550,94 @@ components:
         expires_in:
           type: integer
           minimum: 1
+    CreateUploadIntent:
+      type: object
+      additionalProperties: false
+      required: [filename, content_type, size_bytes]
+      properties:
+        filename:
+          type: string
+          minLength: 1
+          description: Recorded for the client. It is never copied into the object key.
+        content_type:
+          type: string
+          minLength: 1
+        size_bytes:
+          type: integer
+          minimum: 1
+    CommitUpload:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+    UploadPartUrl:
+      type: object
+      additionalProperties: false
+      required: [part_number, url]
+      properties:
+        part_number:
+          type: integer
+          minimum: 1
+        url:
+          type: string
+    UploadIntent:
+      type: object
+      additionalProperties: false
+      required: [id, key, status, expires_in, url, upload_id, part_size, parts]
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        status:
+          type: string
+          enum: [pending]
+        expires_in:
+          type: integer
+          minimum: 1
+        url:
+          type: string
+          nullable: true
+        upload_id:
+          type: string
+          nullable: true
+        part_size:
+          type: integer
+          nullable: true
+        parts:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/UploadPartUrl'
+    UploadResume:
+      type: object
+      additionalProperties: false
+      required: [id, parts]
+      properties:
+        id:
+          type: integer
+        parts:
+          type: array
+          items:
+            $ref: '#/components/schemas/UploadPartUrl'
+    UploadCommitted:
+      type: object
+      additionalProperties: false
+      required: [id, key, status, size]
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        status:
+          type: string
+          enum: [completed]
+        size:
+          type: integer
+          minimum: 0
     CreateProduct:
       type: object
       additionalProperties: false
@@ -617,3 +791,5 @@ tags:
     description: Buyer orders
   - name: health
     description: Liveness and dependency probes
+  - name: uploads
+    description: Presigned uploads into object storage

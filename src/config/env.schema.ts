@@ -38,6 +38,18 @@ export const envSchema = z.object({
 
   // Required. HMAC pepper for refresh-token hashes. Not a default.
   REFRESH_TOKEN_PEPPER: z.string().min(1),
+
+  // Optional. Absent, upload routes fail when called. Empty endpoint means AWS S3.
+  // Live values come from the HW#11 store (or the grading export).
+  STORAGE_ENDPOINT: z.url({ protocol: /^https?$/ }).optional(),
+  STORAGE_ACCESS_KEY: z.string().min(1).optional(),
+  STORAGE_SECRET_KEY: z.string().min(1).optional(),
+  STORAGE_BUCKET: z.string().min(1).optional(),
+  STORAGE_REGION: z.string().min(1).default('us-east-1'),
+
+  // How long a presigned URL stays valid. An avatar form, not a week-old email.
+  // Presigned URLs cannot be revoked, so this stays short.
+  PRESIGN_EXPIRES_SECONDS: z.coerce.number().int().min(1).max(604800).default(300),
 });
 
 export type Env = z.infer<typeof envSchema>;

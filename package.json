@@ -41,12 +41,17 @@
     "demo:auth": "bash scripts/with-secrets.sh dev node scripts/run-built.mjs demo-auth.js",
     "demo:reuse": "bash scripts/with-secrets.sh dev node scripts/run-built.mjs demo-reuse.js",
     "demo:rbac": "bash scripts/with-secrets.sh dev node scripts/run-built.mjs demo-rbac.js",
+    "demo:upload": "bash scripts/with-secrets.sh dev node scripts/run-built.mjs demo-upload.js",
+    "demo:multipart": "bash scripts/with-secrets.sh dev node scripts/run-built.mjs demo-multipart.js",
+    "demo:cdn": "bash scripts/with-secrets.sh dev node scripts/run-built.mjs demo-cdn.js",
     "test:integration": "tsc -p tsconfig.spec.json && jest dist-test/test/integration",
     "test:e2e": "tsc -p tsconfig.spec.json && jest dist-test/test/e2e",
     "test:contract": "tsc -p tsconfig.spec.json && jest dist-test/test/contract/consumer.pact.test.js",
     "verify:provider": "tsc -p tsconfig.spec.json && jest dist-test/test/contract/provider.verify.test.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1166.0",
+    "@aws-sdk/s3-request-presigner": "3.1166.0",
     "@nestjs/common": "11.1.28",
     "@nestjs/config": "4.0.4",
     "@nestjs/core": "11.1.28",

@@ -140,6 +140,24 @@ CREATE TABLE access_denylist (
   expires_at timestamptz NOT NULL
 );
 
+-- Upload intents. The object key is generated here, never from the client's filename.
+-- status stays pending until commit has seen the object with HeadObject.
+CREATE TABLE files (
+  id               bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  owner_id         bigint      NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  object_key       text        NOT NULL UNIQUE,
+  status           text        NOT NULL CHECK (status IN ('pending', 'completed')),
+  size_bytes       bigint      NOT NULL CHECK (size_bytes >= 0),
+  content_type     text        NOT NULL,
+  upload_id        text,
+  idempotency_key  text,
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX idx_files_owner_idempotency
+  ON files (owner_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+
 -- Inbox. The mark and the effect commit together in the consumer.
 CREATE TABLE processed_messages (
   message_id   text        NOT NULL,

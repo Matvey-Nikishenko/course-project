@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "hw26",
+      "credentials": [
+        {
+          "accessKey": "hw26user",
+          "secretKey": "hw26secretpass"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

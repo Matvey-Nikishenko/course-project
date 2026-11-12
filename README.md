@@ -35,6 +35,7 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | 2026-10-27 | Checkout and `order.placed` share one database COMMIT | The broker cannot join that transaction. A relay publishes only after commit, and the consumer dedupes the extra delivery. |
 | 2026-11-05 | Two Redis processes: cache is `allkeys-lru`, queue is `noeviction` | `maxmemory-policy` is one setting for the whole process. Sessions and the BullMQ queue sit on the noeviction instance so a cache eviction cannot drop them. |
 | 2026-11-09 | Access tokens are ES256 JWTs; refresh tokens are opaque and hashed | OWASP marks RS256 “Not recommended”. Verification passes `algorithms: ['ES256']`. Logout revokes the refresh family and the access `jti` in one Postgres commit. |
+| 2026-11-11 | Files go to object storage through a presigned URL | The API decides the key and checks the object with HeadObject. Bytes are uploaded past the API. A new public asset is a new hashed name, so the cache is never invalidated. |
 
 ## Configuration
 
@@ -668,6 +669,120 @@ exits non-zero and names the one that is missing. `npm run start:vault`,
 `demo:auth`, `demo:reuse`, and `demo:rbac` go through
 `scripts/with-secrets.sh`.
 
+## Files
+
+Uploads are two steps. `POST /uploads/intent` checks the access token, allows
+only `image/jpeg`, `image/png`, `image/webp`, and `application/octet-stream`,
+and builds the object key itself: `uploads/{userId}/{uuid}.{ext}`. The
+extension comes from the content type. The filename the client sends, including
+`../../etc/passwd`, is not copied into the key. `POST /uploads/commit` calls
+HeadObject and accepts the row only when the object exists and its size matches
+the intent. A commit with no bytes is 409.
+
+The presigned URL lives **300 seconds**. An avatar is chosen in a form and
+uploaded immediately, and a presigned URL cannot be revoked: there is no `jti`
+and no denylist for it. Seven days would also be a lie under short-lived role
+credentials. The upload demo sets `PRESIGN_EXPIRES_SECONDS=12` so it can show
+`expired=403` without waiting five minutes. The production value stays 300.
+
+A file larger than one minimum part (5 MiB) uses multipart. S3 allows at most
+10 000 parts, and every part except the last must be at least 5 MiB, so the
+part size is `max(5 MiB, ceil(file / 10 000))`. The demo file is `2 * 5 MiB + 1`
+byte, which is three parts. The first process uploads two and stops. A second
+process calls `POST /uploads/resume`, which ListParts and signs only the
+missing part, so `resumed-parts=1`. Until CompleteMultipartUpload, HeadObject
+is 404. The multipart ETag ends in `-N` and is not the MD5 of the file.
+
+The bucket is private. Public assets are read through a small edge in
+`src/storage/edge.ts`: it fetches the object with the storage credentials,
+caches it in memory, and answers with `X-Cache: HIT` or `MISS`. That is the
+local form of CloudFront with Origin Access Control: the browser talks to the
+cache, and only the cache talks to the bucket. The edge stores a response only
+when the object itself was uploaded with
+`Cache-Control: public, max-age=31536000, immutable`. A public name is
+`assets/app.{sha256}.css`. A new deploy is a new name, so nothing is
+invalidated. The stand is SeaweedFS's S3 gateway (`chrislusf/seaweedfs:4.03`
+on port 22650) because the community MinIO image and binaries are no longer
+published. The same client code talks to AWS S3 when `STORAGE_ENDPOINT` is
+empty.
+
+On AWS the bucket policy that lets one distribution read, and no other
+distribution in the world, is:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowCloudFrontRead",
+      "Effect": "Allow",
+      "Principal": { "Service": "cloudfront.amazonaws.com" },
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::BUCKET_NAME/*",
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceArn": "arn:aws:cloudfront::ACCOUNT_ID:distribution/DISTRIBUTION_ID"
+        }
+      }
+    }
+  ]
+}
+```
+
+Block Public Access stays on. Without the `AWS:SourceArn` condition the
+statement would trust every CloudFront distribution.
+
+Pending rows older than a day are aborted and deleted by a sweep in the API
+process: AbortMultipartUpload, DeleteObject, then the row. Incomplete multipart
+uploads are also covered by a lifecycle rule,
+`AbortIncompleteMultipartUpload` after 7 days. A rule that expires objects
+after 30 days does not abort those uploads; they are different actions.
+Double-clicking upload sends one `Idempotency-Key` and keeps a single pending
+row. Private downloads would be `GET /uploads/:id` → 302 onto a fresh
+one-minute presigned URL, so the guard stays on the authorization path and the
+bytes still skip the API. Presigned URLs are not written to logs. The log line
+is the file id and the object key.
+
+A repeated run of each demo deletes its own prefix and aborts leftover
+multipart uploads before it starts.
+
+```text
+intent=200
+key-from-server=1
+api-alive=0
+put-offline=200
+commit=200
+commit-without-bytes=409
+tampered=403
+expired=403
+
+head-before-complete=404
+resumed-parts=1
+complete=200
+size-match=1
+etag-multipart=1
+
+direct=403
+edge-miss=200
+edge-hit=200
+cache-hit=1
+new-name=1
+new-url=200
+content-changed=1
+```
+
+| Змінна | Джерело | Навіщо |
+| --- | --- | --- |
+| `STORAGE_ACCESS_KEY` | сховище (#11) | access key of the object store |
+| `STORAGE_SECRET_KEY` | сховище (#11) | secret key used to sign presigned URLs |
+| `STORAGE_ENDPOINT` | compose / оточення | empty on AWS; `http://127.0.0.1:22650` on the stand |
+| `STORAGE_BUCKET` | compose / оточення | bucket name, `hw26-files` on the stand |
+| `STORAGE_REGION` | compose / оточення | signing region, `us-east-1` |
+| `PRESIGN_EXPIRES_SECONDS` | default in code | presigned lifetime, 300 seconds |
+
+`demo:upload`, `demo:multipart`, and `demo:cdn` go through
+`scripts/with-secrets.sh`.
+
 ## Grading
 
 ```bash
@@ -688,6 +803,12 @@ export JWT_KID=grader
 export JWT_PRIVATE_KEY="$(cat /tmp/priv.b64)"
 export JWT_PUBLIC_KEY="$(cat /tmp/pub.b64)"
 export REFRESH_TOKEN_PEPPER=grader-pepper
+
+export STORAGE_ENDPOINT=http://127.0.0.1:22650
+export STORAGE_ACCESS_KEY=hw26user
+export STORAGE_SECRET_KEY=hw26secretpass
+export STORAGE_BUCKET=hw26-files
+export STORAGE_REGION=us-east-1
 
 npm ci
 npx tsc --noEmit
@@ -722,6 +843,10 @@ npm run demo:queue
 npm run demo:auth
 npm run demo:reuse
 npm run demo:rbac
+
+npm run demo:upload
+npm run demo:multipart
+npm run demo:cdn
 
 export DATABASE_URL=postgres://admin:admin-bootstrap-only@127.0.0.1:6432/marketplace
 export SKIP_VAULT=1

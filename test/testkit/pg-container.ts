@@ -65,7 +65,7 @@ function ensureTestAuthKeys(): void {
 
 export async function truncateAll(pool: Pool): Promise<void> {
   await pool.query(
-    'TRUNCATE access_denylist, refresh_tokens, jobs, order_items, orders, products, users RESTART IDENTITY CASCADE',
+    'TRUNCATE files, access_denylist, refresh_tokens, jobs, order_items, orders, products, users RESTART IDENTITY CASCADE',
   );
 }
 
