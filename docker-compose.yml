@@ -68,6 +68,71 @@ services:
       retries: 20
       start_period: 20s
 
+  # Cache. maxmemory-policy is process-wide, so this box cannot also host the queue.
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    command:
+      - redis-server
+      - --maxmemory
+      - 32mb
+      - --maxmemory-policy
+      - allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  # Queue, sessions, and the rate-limit counter. BullMQ refuses allkeys-lru.
+  redis-queue:
+    image: redis:8-alpine
+    ports:
+      - "6380:6379"
+    command:
+      - redis-server
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+    volumes:
+      - redis-queue:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  # S3-compatible store. The community MinIO image is no longer published,
+  # so the stand is SeaweedFS's S3 gateway. Stand keys live in docker/s3.json,
+  # the same way the Postgres bootstrap password lives in this file.
+  # tmpfs >= 1g so a multipart demo cannot fill a tiny disk and die mid-run.
+  s3:
+    image: chrislusf/seaweedfs:4.03
+    command:
+      - server
+      - -dir=/data
+      - -ip=0.0.0.0
+      - -filer
+      - -s3
+      - -s3.port=8333
+      - -s3.config=/etc/seaweedfs/s3.json
+    ports:
+      - "22650:8333"
+    volumes:
+      - ./docker/s3.json:/etc/seaweedfs/s3.json:ro
+    tmpfs:
+      - /data:size=1g
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9333/cluster/status"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
   pact-broker:
     image: pactfoundation/pact-broker:2.142.0-pactbroker2.120.0
     ports:
@@ -87,3 +152,4 @@ services:
 
 volumes:
   marketplace-db:
+  redis-queue:

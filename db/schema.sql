@@ -8,6 +8,7 @@ CREATE TABLE users (
   email      text        NOT NULL UNIQUE,
   role       text        NOT NULL CHECK (role IN ('buyer', 'seller')),
   balance_cents integer  NOT NULL DEFAULT 0 CHECK (balance_cents >= 0),
+  password_hash text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -116,6 +117,46 @@ CREATE TABLE idempotency_keys (
   order_id    bigint,
   created_at  timestamptz NOT NULL DEFAULT now()
 );
+
+-- Refresh tokens are stored as HMAC(pepper, token). A dump of this table is not a dump of live sessions.
+-- used_at marks a rotated token. Presenting it again revokes every row with that family_id.
+CREATE TABLE refresh_tokens (
+  id          bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id     bigint      NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  family_id   uuid        NOT NULL,
+  token_hash  text        NOT NULL,
+  expires_at  timestamptz NOT NULL,
+  used_at     timestamptz,
+  revoked_at  timestamptz,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX idx_refresh_tokens_hash ON refresh_tokens (token_hash);
+CREATE INDEX idx_refresh_tokens_family ON refresh_tokens (family_id);
+
+-- Access tokens are self-contained until exp. Logout writes jti here in the same transaction as revoked_at.
+CREATE TABLE access_denylist (
+  jti        text        PRIMARY KEY,
+  expires_at timestamptz NOT NULL
+);
+
+-- Upload intents. The object key is generated here, never from the client's filename.
+-- status stays pending until commit has seen the object with HeadObject.
+CREATE TABLE files (
+  id               bigint      GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  owner_id         bigint      NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  object_key       text        NOT NULL UNIQUE,
+  status           text        NOT NULL CHECK (status IN ('pending', 'completed')),
+  size_bytes       bigint      NOT NULL CHECK (size_bytes >= 0),
+  content_type     text        NOT NULL,
+  upload_id        text,
+  idempotency_key  text,
+  created_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX idx_files_owner_idempotency
+  ON files (owner_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
 
 -- Inbox. The mark and the effect commit together in the consumer.
 CREATE TABLE processed_messages (

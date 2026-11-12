@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Env } from '../config/env.schema';
+import { RatingJobsService } from '../rating-jobs/rating-jobs.service';
 import { TypeormService } from '../typeorm/typeorm.service';
 import { outboxWorkersEnabled } from '../outbox/autostart';
 import { configuredBrokerUrl } from './broker-url';
@@ -15,6 +16,7 @@ export class OrderPlacedConsumerService implements OnModuleInit, OnModuleDestroy
   constructor(
     private readonly config: ConfigService<Env, true>,
     private readonly typeorm: TypeormService,
+    private readonly ratingJobs: RatingJobsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -25,6 +27,7 @@ export class OrderPlacedConsumerService implements OnModuleInit, OnModuleDestroy
     const consumer = await startBackgroundConsumer({
       brokerUrl: url,
       tx,
+      afterEffect: (event) => this.ratingJobs.enqueue(event.data.orderId),
       onError: (err) => {
         const message = err instanceof Error ? err.message : String(err);
         this.logger.error(`order.placed consumer dropped the queue, reopening: ${message}`);

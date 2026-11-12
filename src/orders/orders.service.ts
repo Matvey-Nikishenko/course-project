@@ -1,12 +1,15 @@
 import { createHash } from 'node:crypto';
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { AccessClaims } from '../auth/tokens';
 import { CursorPageQueryDto } from '../common/dto/cursor-page-query.dto';
 import { paginate } from '../common/pagination/pagination';
+import { CacheService } from '../cache/cache.service';
 import { CheckoutRejected, IdempotencyReuse, checkout } from '../checkout';
 import { Order as OrderRow } from '../entities/order';
 import { User } from '../entities/user';
@@ -21,6 +24,7 @@ export class OrdersService {
   constructor(
     private readonly typeorm: TypeormService,
     private readonly orderEvents: OrderEventsService,
+    private readonly cache: CacheService,
   ) {}
 
   async list(query: CursorPageQueryDto) {
@@ -35,7 +39,7 @@ export class OrdersService {
     );
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, viewer?: Pick<AccessClaims, 'id'>) {
     const row = await this.typeorm.ds.getRepository(OrderRow).findOne({
       where: { id: String(id) },
       relations: { buyer: true, items: { product: true } },
@@ -46,12 +50,24 @@ export class OrdersService {
         detail: `order ${id} not found`,
       });
     }
+    if (viewer && row.buyer.id !== viewer.id) {
+      throw new ForbiddenException({
+        code: 'not-owner',
+        detail: `order ${id} belongs to another buyer`,
+      });
+    }
     return this.toHttp(row);
   }
 
-  async create(dto: CreateOrderDto, idempotencyKey?: string): Promise<Order> {
+  async create(dto: CreateOrderDto, idempotencyKey: string | undefined, actor: AccessClaims): Promise<Order> {
+    if (actor.id !== String(dto.buyer_id)) {
+      throw new ForbiddenException({
+        code: 'not-buyer',
+        detail: 'buyer_id does not match the access token',
+      });
+    }
     const buyer = await this.typeorm.ds.getRepository(User).findOne({
-      where: { id: String(dto.buyer_id) },
+      where: { id: actor.id },
     });
     if (!buyer) {
       throw new UnprocessableEntityException({
@@ -73,6 +89,7 @@ export class OrdersService {
           ? createHash('sha256').update(JSON.stringify(dto)).digest('hex')
           : undefined,
       });
+      await this.cache.invalidate(dto.items.map((item) => item.product_id));
       return this.findOne(Number(orderId));
     } catch (err) {
       if (err instanceof IdempotencyReuse) {

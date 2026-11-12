@@ -14,9 +14,13 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Subscription } from 'rxjs';
+import { AuthGuard } from '../auth/auth.guard';
+import { CurrentUser } from '../auth/current-user.decorator';
+import { AccessClaims } from '../auth/tokens';
 import { CursorPageQueryDto } from '../common/dto/cursor-page-query.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -90,8 +94,9 @@ export class OrdersController {
   }
 
   @Get(':id')
-  one(@Param('id', ParseIntPipe) id: number) {
-    return this.ordersService.findOne(id);
+  @UseGuards(AuthGuard)
+  one(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: AccessClaims) {
+    return this.ordersService.findOne(id, user);
   }
 
   @Patch(':id')
@@ -101,12 +106,14 @@ export class OrdersController {
 
   @Post()
   @HttpCode(201)
+  @UseGuards(AuthGuard)
   async create(
     @Body() dto: CreateOrderDto,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @CurrentUser() user: AccessClaims,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const order = await this.ordersService.create(dto, idempotencyKey);
+    const order = await this.ordersService.create(dto, idempotencyKey, user);
     res.setHeader('Location', `/orders/${order.id}`);
     return order;
   }

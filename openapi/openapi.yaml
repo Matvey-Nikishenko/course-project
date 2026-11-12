@@ -9,6 +9,142 @@ servers:
     description: Local in-memory server for HW#9
 security: []
 paths:
+  /auth/login:
+    post:
+      operationId: login
+      summary: Exchange email and password for an access and refresh pair
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: A fresh pair. expires_in is the access-token lifetime in seconds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      operationId: refresh
+      summary: Rotate a refresh token and issue a new pair
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: The previous refresh token is now used. The new pair stays in the same family.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke the refresh family and denylist the presented access token
+      responses:
+        '204':
+          description: Both tokens of this session are dead.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /uploads/intent:
+    post:
+      operationId: createUploadIntent
+      tags: [uploads]
+      summary: Reserve an object key and a short presigned URL
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUploadIntent'
+      responses:
+        '200':
+          description: Pending upload. The object key was chosen by the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadIntent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /uploads/resume:
+    post:
+      operationId: resumeUpload
+      tags: [uploads]
+      summary: Presign only the multipart parts that are not in the store yet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitUpload'
+      responses:
+        '200':
+          description: URLs for the missing parts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResume'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /uploads/commit:
+    post:
+      operationId: commitUpload
+      tags: [uploads]
+      summary: HeadObject the bytes, then mark the row completed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitUpload'
+      responses:
+        '200':
+          description: The object is in the store and the row is completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadCommitted'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
   /products:
     get:
       operationId: listProducts
@@ -26,6 +162,31 @@ paths:
                 $ref: '#/components/schemas/ProductPage'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      operationId: createProduct
+      tags: [products]
+      summary: Create a product. Seller or admin only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProduct'
+      responses:
+        '201':
+          description: The product that was stored.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /products/{id}:
@@ -119,6 +280,10 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /orders/{id}:
@@ -139,6 +304,10 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
     patch:
@@ -269,6 +438,18 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Missing, expired, or invalid token
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Token is valid and the caller is not allowed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
     InternalServerError:
       description: >
         Unexpected server error. Also returned when a response fails validation
@@ -335,6 +516,142 @@ components:
           type: string
           description: Reference to this occurrence (request path)
           example: /orders
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          minLength: 3
+        password:
+          type: string
+          minLength: 1
+    RefreshRequest:
+      type: object
+      additionalProperties: false
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          minLength: 1
+    TokenPair:
+      type: object
+      additionalProperties: false
+      required: [access_token, refresh_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          minimum: 1
+    CreateUploadIntent:
+      type: object
+      additionalProperties: false
+      required: [filename, content_type, size_bytes]
+      properties:
+        filename:
+          type: string
+          minLength: 1
+          description: Recorded for the client. It is never copied into the object key.
+        content_type:
+          type: string
+          minLength: 1
+        size_bytes:
+          type: integer
+          minimum: 1
+    CommitUpload:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+    UploadPartUrl:
+      type: object
+      additionalProperties: false
+      required: [part_number, url]
+      properties:
+        part_number:
+          type: integer
+          minimum: 1
+        url:
+          type: string
+    UploadIntent:
+      type: object
+      additionalProperties: false
+      required: [id, key, status, expires_in, url, upload_id, part_size, parts]
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        status:
+          type: string
+          enum: [pending]
+        expires_in:
+          type: integer
+          minimum: 1
+        url:
+          type: string
+          nullable: true
+        upload_id:
+          type: string
+          nullable: true
+        part_size:
+          type: integer
+          nullable: true
+        parts:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/UploadPartUrl'
+    UploadResume:
+      type: object
+      additionalProperties: false
+      required: [id, parts]
+      properties:
+        id:
+          type: integer
+        parts:
+          type: array
+          items:
+            $ref: '#/components/schemas/UploadPartUrl'
+    UploadCommitted:
+      type: object
+      additionalProperties: false
+      required: [id, key, status, size]
+      properties:
+        id:
+          type: integer
+        key:
+          type: string
+        status:
+          type: string
+          enum: [completed]
+        size:
+          type: integer
+          minimum: 0
+    CreateProduct:
+      type: object
+      additionalProperties: false
+      required: [title, price_cents, stock]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        price_cents:
+          type: integer
+          minimum: 0
+        stock:
+          type: integer
+          minimum: 0
     Product:
       type: object
       additionalProperties: false
@@ -439,7 +756,7 @@ components:
         buyer_id:
           type: integer
           minimum: 1
-          description: Buyer placing the order. Until auth lands, the client sends the id in the body.
+          description: Must equal the subject of the access token. A mismatch is 403.
           example: 1
         items:
           type: array
@@ -474,3 +791,5 @@ tags:
     description: Buyer orders
   - name: health
     description: Liveness and dependency probes
+  - name: uploads
+    description: Presigned uploads into object storage

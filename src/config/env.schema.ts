@@ -21,6 +21,35 @@ export const envSchema = z.object({
   // Optional. Absent, the API does not publish. The value comes from the HW#11
   // store (or the grading export). AMQP has no separate password file here.
   BROKER_URL: z.url({ protocol: /^amqp$/ }).optional(),
+
+  // Optional. Absent, product reads skip the cache. Cache instance only:
+  // allkeys-lru. The live value comes from the HW#11 store.
+  REDIS_URL: z.url({ protocol: /^rediss?$/ }).optional(),
+
+  // Optional. Absent, there is no session store, shared limit, or BullMQ worker.
+  // Queue instance: maxmemory-policy noeviction. Same HW#11 store.
+  REDIS_QUEUE_URL: z.url({ protocol: /^rediss?$/ }).optional(),
+
+  // Required. No default: a default would be a signing key baked into the code.
+  // PEM bytes, base64-encoded, from the HW#11 store. ES256 PKCS#8.
+  JWT_KID: z.string().min(1),
+  JWT_PRIVATE_KEY: z.string().min(1),
+  JWT_PUBLIC_KEY: z.string().min(1),
+
+  // Required. HMAC pepper for refresh-token hashes. Not a default.
+  REFRESH_TOKEN_PEPPER: z.string().min(1),
+
+  // Optional. Absent, upload routes fail when called. Empty endpoint means AWS S3.
+  // Live values come from the HW#11 store (or the grading export).
+  STORAGE_ENDPOINT: z.url({ protocol: /^https?$/ }).optional(),
+  STORAGE_ACCESS_KEY: z.string().min(1).optional(),
+  STORAGE_SECRET_KEY: z.string().min(1).optional(),
+  STORAGE_BUCKET: z.string().min(1).optional(),
+  STORAGE_REGION: z.string().min(1).default('us-east-1'),
+
+  // How long a presigned URL stays valid. An avatar form, not a week-old email.
+  // Presigned URLs cannot be revoked, so this stays short.
+  PRESIGN_EXPIRES_SECONDS: z.coerce.number().int().min(1).max(604800).default(300),
 });
 
 export type Env = z.infer<typeof envSchema>;
