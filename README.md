@@ -558,13 +558,13 @@ processed=1
 
 ## Redis: кеш, сесії, ліміти, черга
 
-The cached read is the product card: the listing, the seller, the stock, units sold, and a rating derived from those sales. A miss loads that row from Postgres and stores it. A hit reads Redis only. The TTL is `300 + random(0..60)` seconds, so a batch of keys warmed together does not expire on the same second. A write (checkout) also deletes the card; the TTL stays in place either way.
+The cached read is the product card: the listing, the seller, the stock, units sold, and a rating derived from those sales. A miss loads that row from Postgres and stores it. A hit reads Redis only. The TTL is `300 + random(0..60)` seconds, so a batch of keys warmed together does not expire on the same second. Checkout deletes the card before the order transaction and again after the commit. A reader that loaded the old row can SET it after the first delete; the second delete drops that fill instead of leaving it for the whole TTL.
 
 A cold key takes a single-flight lock: `SET lock:… <token> NX PX`. The winner loads the card. Everyone else waits and reads the cache. The lock is removed with a Lua compare-and-delete of that token. A plain `DEL` would remove a lock that already belongs to the next waiter.
 
 Sessions are on the queue Redis, read with `GETEX`, which moves the TTL forward on each request (`x-session-id`). The cache instance is `allkeys-lru` and will eventually evict a session while the user is still active. The queue instance is `noeviction`, so a session stays until its own TTL. A third Redis would also do that. The queue box already has the policy a session needs.
 
-The limit is a sliding window in one Lua script (`ZREMRANGEBYSCORE`, `ZCARD`, `ZADD`). A fixed window lets a client spend the whole limit at the end of a minute and again at the start of the next. This limit is there to refuse that burst. Two API processes share the counter. Over the limit the response is 429 with `Retry-After`.
+The limit is a sliding window in one Lua script (`ZREMRANGEBYSCORE`, `ZCARD`, `ZADD`). A fixed window lets a client spend the whole limit at the end of a minute and again at the start of the next. This limit is there to refuse that burst. The bucket is the first address in `X-Forwarded-For`. `req.ip` without trust proxy is the load balancer, so every client would share one bucket. The default is 120 requests per minute. Over the limit the guard answers 429 with `Retry-After`. `demo:ratelimit` boots the API with a window of 5 and sends seven `GET /health` calls from two processes that share one forwarded address.
 
 BullMQ runs on the queue Redis. A rating recalculation is `attempts: 5` with exponential backoff and jitter, and a `jobId` so a second `add` of the same order is the same job. Completed jobs are kept for an hour (`removeOnComplete: { age }`). Removing them immediately would forget the `jobId` and the dedup would stop. The hourly sweep is `upsertJobScheduler`, so a restart updates that scheduler instead of adding another one. The worker uses `maxRetriesPerRequest: null` so a dropped Redis connection waits instead of killing the process.
 
