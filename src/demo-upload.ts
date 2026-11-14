@@ -164,7 +164,7 @@ async function main(): Promise<void> {
       rows['commit-without-bytes'] >= 400 &&
       rows['commit-without-bytes'] < 500 &&
       rows.tampered === 403 &&
-      rows.expired === 403;
+      rows.expired === 400;
     await resetPrefix(client, storage.bucket, 'uploads/');
     await resetUsers(EMAILS);
     await closeDemo(app);

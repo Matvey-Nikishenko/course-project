@@ -683,7 +683,9 @@ The presigned URL lives **300 seconds**. An avatar is chosen in a form and
 uploaded immediately, and a presigned URL cannot be revoked: there is no `jti`
 and no denylist for it. Seven days would also be a lie under short-lived role
 credentials. The upload demo sets `PRESIGN_EXPIRES_SECONDS=12` so it can show
-`expired=403` without waiting five minutes. The production value stays 300.
+`expired=400` without waiting five minutes. The production value stays 300.
+Garage answers an expired presigned PUT with 400 InvalidRequest (`Date is too
+old`). A tampered path and an anonymous read stay 403.
 
 A file larger than one minimum part (5 MiB) uses multipart. S3 allows at most
 10 000 parts, and every part except the last must be at least 5 MiB, so the
@@ -701,10 +703,11 @@ cache, and only the cache talks to the bucket. The edge stores a response only
 when the object itself was uploaded with
 `Cache-Control: public, max-age=31536000, immutable`. A public name is
 `assets/app.{sha256}.css`. A new deploy is a new name, so nothing is
-invalidated. The stand is SeaweedFS's S3 gateway (`chrislusf/seaweedfs:4.03`
-on port 22650) because the community MinIO image and binaries are no longer
-published. The same client code talks to AWS S3 when `STORAGE_ENDPOINT` is
-empty.
+invalidated. The stand is Garage (`dxflrs/garage:v2.5.0`, S3 on port 3900):
+one node, `replication_factor = 1`, a private bucket, path-style requests.
+`s3_region` is `us-east-1` so the AWS SDK credential scope matches
+`STORAGE_REGION`. The same client code talks to AWS S3 when `STORAGE_ENDPOINT`
+is empty.
 
 On AWS the bucket policy that lets one distribution read, and no other
 distribution in the world, is:
@@ -754,7 +757,7 @@ put-offline=200
 commit=200
 commit-without-bytes=409
 tampered=403
-expired=403
+expired=400
 
 head-before-complete=404
 resumed-parts=1
@@ -775,7 +778,7 @@ content-changed=1
 | --- | --- | --- |
 | `STORAGE_ACCESS_KEY` | сховище (#11) | access key of the object store |
 | `STORAGE_SECRET_KEY` | сховище (#11) | secret key used to sign presigned URLs |
-| `STORAGE_ENDPOINT` | compose / оточення | empty on AWS; `http://127.0.0.1:22650` on the stand |
+| `STORAGE_ENDPOINT` | compose / оточення | empty on AWS; `http://127.0.0.1:3900` on the stand |
 | `STORAGE_BUCKET` | compose / оточення | bucket name, `hw26-files` on the stand |
 | `STORAGE_REGION` | compose / оточення | signing region, `us-east-1` |
 | `PRESIGN_EXPIRES_SECONDS` | default in code | presigned lifetime, 300 seconds |
@@ -804,9 +807,9 @@ export JWT_PRIVATE_KEY="$(cat /tmp/priv.b64)"
 export JWT_PUBLIC_KEY="$(cat /tmp/pub.b64)"
 export REFRESH_TOKEN_PEPPER=grader-pepper
 
-export STORAGE_ENDPOINT=http://127.0.0.1:22650
+export STORAGE_ENDPOINT=http://127.0.0.1:3900
 export STORAGE_ACCESS_KEY=hw26user
-export STORAGE_SECRET_KEY=hw26secretpass
+export STORAGE_SECRET_KEY=hw26secretpass01
 export STORAGE_BUCKET=hw26-files
 export STORAGE_REGION=us-east-1
 

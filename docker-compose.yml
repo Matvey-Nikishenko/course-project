@@ -106,28 +106,31 @@ services:
       timeout: 2s
       retries: 20
 
-  # S3-compatible store. The community MinIO image is no longer published,
-  # so the stand is SeaweedFS's S3 gateway. Stand keys live in docker/s3.json,
-  # the same way the Postgres bootstrap password lives in this file.
-  # tmpfs >= 1g so a multipart demo cannot fill a tiny disk and die mid-run.
+  # S3-compatible store. Garage v2, one node, no replication.
+  # --single-node applies the layout; --default-bucket imports the stand key
+  # and creates hw26-files. The secret is at least 16 characters because
+  # Garage rejects a shorter one. tmpfs so a recreate starts empty, and the
+  # data disk is >= 1g so the multipart demo cannot fill it mid-run.
   s3:
-    image: chrislusf/seaweedfs:4.03
+    image: dxflrs/garage:v2.5.0
     command:
+      - /garage
       - server
-      - -dir=/data
-      - -ip=0.0.0.0
-      - -filer
-      - -s3
-      - -s3.port=8333
-      - -s3.config=/etc/seaweedfs/s3.json
+      - --single-node
+      - --default-bucket
+    environment:
+      GARAGE_DEFAULT_ACCESS_KEY: hw26user
+      GARAGE_DEFAULT_SECRET_KEY: hw26secretpass01
+      GARAGE_DEFAULT_BUCKET: hw26-files
     ports:
-      - "22650:8333"
+      - "3900:3900"
     volumes:
-      - ./docker/s3.json:/etc/seaweedfs/s3.json:ro
+      - ./docker/garage.toml:/etc/garage.toml:ro
     tmpfs:
-      - /data:size=1g
+      - /var/lib/garage/meta:size=256m
+      - /var/lib/garage/data:size=1g
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9333/cluster/status"]
+      test: ["CMD", "/garage", "status"]
       interval: 2s
       timeout: 5s
       retries: 30
