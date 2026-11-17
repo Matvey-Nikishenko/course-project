@@ -15,3 +15,7 @@ pacts/
 secrets/
 .secrets/
 backups/
+.npm_token
+.pulumi/
+infra/node_modules/
+infra/bin/

@@ -46,7 +46,9 @@ export function configureApp(app: INestApplication): INestApplication {
   app.useWebSocketAdapter(new IoAdapter(app));
   const config = app.get(ConfigService<Env, true>);
   app.useLogger(LOG_LEVELS[config.get('LOG_LEVEL', { infer: true })]);
-  app.enableShutdownHooks();
+  // SIGTERM is handled in main.ts: readiness goes false, the drain window
+  // elapses, and only then the socket closes. Nest's own hook would close
+  // immediately, while the balancer still has this pod in the endpoints.
 
   app.use(express.json());
   app.use(
