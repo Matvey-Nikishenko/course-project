@@ -50,7 +50,7 @@ function connectionFromDbVars(): PgConn | null {
     host,
     port: Number(process.env.DB_PORT ?? '5432'),
     username,
-    password: process.env.DB_PASSWORD ?? '',
+    password: process.env.DB_PASSWORD || process.env.APP_DB_PASSWORD || '',
     database,
   };
 }
@@ -58,6 +58,7 @@ function connectionFromDbVars(): PgConn | null {
 function passwordFromUrlOrFile(url: URL): string {
   if (url.password) return decodeURIComponent(url.password);
   if (process.env.DB_PASSWORD) return process.env.DB_PASSWORD;
+  if (process.env.APP_DB_PASSWORD) return process.env.APP_DB_PASSWORD;
   const file = process.env.DB_PASSWORD_FILE ?? 'secrets/db_password';
   return existsSync(file) ? readFileSync(file, 'utf8').trim() : '';
 }

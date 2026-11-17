@@ -21,6 +21,9 @@ export class SharedRateLimitGuard implements CanActivate {
     const http = context.switchToHttp();
     const req = http.getRequest<Request>();
     const res = http.getResponse<Response>();
+    if (req.path === '/healthz' || req.path === '/readyz' || req.path === '/health' || req.path === '/health/db') {
+      return true;
+    }
     const ip = clientAddress(req);
     const decision = await this.limits.take(ip);
     if (!decision || decision.allowed) return true;
