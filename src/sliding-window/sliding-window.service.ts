@@ -8,14 +8,23 @@ import { LimitDecision, takeToken } from './window';
 const API_LIMIT = 120;
 const API_WINDOW_MS = 60_000;
 
+function positiveInt(raw: string | undefined, fallback: number): number {
+  const value = Number(raw);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
 @Injectable()
 export class SlidingWindowService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SlidingWindowService.name);
   private redis: Redis | null = null;
+  private limit = API_LIMIT;
+  private windowMs = API_WINDOW_MS;
 
   constructor(private readonly config: ConfigService<Env, true>) {}
 
   async onModuleInit(): Promise<void> {
+    this.limit = positiveInt(process.env.RATE_LIMIT, API_LIMIT);
+    this.windowMs = positiveInt(process.env.RATE_LIMIT_WINDOW_MS, API_WINDOW_MS);
     const url = configuredRedisUrl(this.config.get('REDIS_QUEUE_URL', { infer: true }));
     if (!url) return;
     const redis = new Redis(url, {
@@ -44,7 +53,7 @@ export class SlidingWindowService implements OnModuleInit, OnModuleDestroy {
   async take(ip: string): Promise<LimitDecision | null> {
     if (!this.redis) return null;
     try {
-      return await takeToken(this.redis, `rl:api:${ip}`, API_LIMIT, API_WINDOW_MS);
+      return await takeToken(this.redis, `rl:api:${ip}`, this.limit, this.windowMs);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`rate limit failed open: ${message}`);

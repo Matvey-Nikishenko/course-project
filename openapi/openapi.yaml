@@ -28,6 +28,8 @@ paths:
                 $ref: '#/components/schemas/TokenPair'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /auth/refresh:
     post:
@@ -48,6 +50,8 @@ paths:
                 $ref: '#/components/schemas/TokenPair'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /auth/logout:
     post:
@@ -58,6 +62,8 @@ paths:
           description: Both tokens of this session are dead.
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /uploads/intent:
     post:
@@ -90,6 +96,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '409':
           $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /uploads/resume:
     post:
@@ -117,6 +125,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /uploads/commit:
     post:
@@ -144,6 +154,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
 
   /products:
     get:
@@ -164,6 +176,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
     post:
       operationId: createProduct
       tags: [products]
@@ -187,6 +201,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /products/{id}:
@@ -209,6 +225,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /orders:
     get:
       operationId: listOrders
@@ -230,6 +248,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
     post:
       operationId: createOrder
       tags: [orders]
@@ -288,6 +308,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /orders/{id}:
     get:
       operationId: getOrder
@@ -312,6 +334,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
     patch:
       operationId: updateOrderStatus
       tags: [orders]
@@ -341,6 +365,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /health:
     get:
       operationId: getHealth
@@ -359,6 +385,8 @@ paths:
                 $ref: '#/components/schemas/Health'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /health/db:
     get:
       operationId: getDatabaseHealth
@@ -377,6 +405,8 @@ paths:
                 $ref: '#/components/schemas/DatabaseHealth'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 components:
@@ -452,6 +482,17 @@ components:
             $ref: '#/components/schemas/Problem'
     Forbidden:
       description: Token is valid and the caller is not allowed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    TooManyRequests:
+      description: The shared sliding window for this client address is full
+      headers:
+        Retry-After:
+          description: Seconds until the oldest request leaves the window
+          schema:
+            type: string
       content:
         application/problem+json:
           schema:
