@@ -35,8 +35,9 @@ export class OrdersController {
   ) {}
 
   @Get()
-  list(@Query() query: CursorPageQueryDto) {
-    return this.ordersService.list(query);
+  @UseGuards(AuthGuard)
+  list(@Query() query: CursorPageQueryDto, @CurrentUser() user: AccessClaims) {
+    return this.ordersService.list(query, user);
   }
 
   @Get(':id/events')
@@ -100,8 +101,13 @@ export class OrdersController {
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateOrderStatusDto) {
-    return this.ordersService.updateStatus(id, dto.status);
+  @UseGuards(AuthGuard)
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateOrderStatusDto,
+    @CurrentUser() user: AccessClaims,
+  ) {
+    return this.ordersService.updateStatus(id, dto.status, user);
   }
 
   @Post()

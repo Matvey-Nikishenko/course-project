@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EntityManager } from 'typeorm';
 import { Env } from '../config/env.schema';
@@ -42,17 +42,39 @@ function unauthorized(detail: string): UnauthorizedException {
   return new UnauthorizedException({ code: 'unauthorized', detail });
 }
 
+const DENYLIST_SWEEP_MS = 60 * 60 * 1000;
+
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(AuthService.name);
   private readonly keys: SigningKeys;
   private readonly pepper: string;
+  private sweepTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly typeorm: TypeormService,
     config: ConfigService<Env, true>,
   ) {
-    this.keys = loadSigningKeys(process.env);
+    this.keys = loadSigningKeys({
+      JWT_KID: config.get('JWT_KID', { infer: true }),
+      JWT_PRIVATE_KEY: config.get('JWT_PRIVATE_KEY', { infer: true }),
+      JWT_PUBLIC_KEY: config.get('JWT_PUBLIC_KEY', { infer: true }),
+    });
     this.pepper = config.get('REFRESH_TOKEN_PEPPER', { infer: true });
+  }
+
+  onModuleInit(): void {
+    this.sweepTimer = setInterval(() => {
+      this.purgeDenylist().catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(`denylist sweep failed: ${message}`);
+      });
+    }, DENYLIST_SWEEP_MS);
+    this.sweepTimer.unref();
+  }
+
+  onModuleDestroy(): void {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
   }
 
   async login(email: string, password: string): Promise<TokenPair> {
@@ -118,8 +140,12 @@ export class AuthService {
          ON CONFLICT (jti) DO UPDATE SET expires_at = EXCLUDED.expires_at`,
         [claims.jti, claims.exp],
       );
-      await manager.query(`DELETE FROM access_denylist WHERE expires_at < now()`);
     });
+  }
+
+  /** Expired jti rows are useless after exp. The delete is not on the logout path. */
+  private async purgeDenylist(): Promise<void> {
+    await this.typeorm.ds.query(`DELETE FROM access_denylist WHERE expires_at < now()`);
   }
 
   async authenticate(token: string): Promise<AccessClaims> {

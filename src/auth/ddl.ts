@@ -26,4 +26,8 @@ export const AUTH_STATEMENTS = [
       expires_at timestamptz NOT NULL
     )
   `,
+  `
+    CREATE INDEX IF NOT EXISTS idx_access_denylist_expires
+      ON access_denylist (expires_at)
+  `,
 ];

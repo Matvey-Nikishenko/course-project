@@ -27,8 +27,9 @@ export class OrdersService {
     private readonly cache: CacheService,
   ) {}
 
-  async list(query: CursorPageQueryDto) {
+  async list(query: CursorPageQueryDto, viewer: Pick<AccessClaims, 'id'>) {
     const rows = await this.typeorm.ds.getRepository(OrderRow).find({
+      where: { buyer: { id: viewer.id } },
       relations: { buyer: true, items: { product: true } },
       order: { id: 'ASC' },
     });
@@ -129,19 +130,28 @@ export class OrdersService {
     return row?.buyer?.id ?? null;
   }
 
-  async updateStatus(id: number, status: OrderStatusName): Promise<Order> {
+  async updateStatus(id: number, status: OrderStatusName, viewer: Pick<AccessClaims, 'id'>): Promise<Order> {
     const repo = this.typeorm.ds.getRepository(OrderRow);
-    const row = await repo.findOne({ where: { id: String(id) } });
+    const row = await repo.findOne({
+      where: { id: String(id) },
+      relations: { buyer: true },
+    });
     if (!row) {
       throw new NotFoundException({
         code: 'not-found',
         detail: `order ${id} not found`,
       });
     }
+    if (row.buyer.id !== viewer.id) {
+      throw new ForbiddenException({
+        code: 'not-owner',
+        detail: `order ${id} belongs to another buyer`,
+      });
+    }
     row.status = status;
     await repo.save(row);
     await this.orderEvents.publish(id, status);
-    return this.findOne(id);
+    return this.findOne(id, viewer);
   }
 
   private toHttp(row: OrderRow): Order {

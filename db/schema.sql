@@ -140,6 +140,8 @@ CREATE TABLE access_denylist (
   expires_at timestamptz NOT NULL
 );
 
+CREATE INDEX idx_access_denylist_expires ON access_denylist (expires_at);
+
 -- Upload intents. The object key is generated here, never from the client's filename.
 -- status stays pending until commit has seen the object with HeadObject.
 CREATE TABLE files (

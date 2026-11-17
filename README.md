@@ -417,7 +417,9 @@ curl -s 'http://127.0.0.1:21620/can-i-deploy?pacticipant=web-app&version=1.0.0&t
 ## Realtime
 
 A status change is `PATCH /orders/:id` with `{ "status": "new" | "paid" | "shipped" | "cancelled" }`.
-`OrdersService.updateStatus` saves the row and publishes on `OrderEventsService`.
+The caller is the access token. A missing order is 404, another buyer's order is 403,
+and the row is saved only after that check. `OrdersService.updateStatus` then
+publishes on `OrderEventsService`.
 The gateway and `GET /orders/:id/events` only listen — they do not emit.
 
 WebSocket: the socket identifies itself in `handshake.auth` (`{ userId }`) at
@@ -634,6 +636,12 @@ onto `access_denylist` with `expires_at` equal to that `exp`. Both writes are
 one Postgres commit. Putting the denylist in Redis and the family revoke in
 Postgres would be a dual write: one of the two can succeed and the other can
 fail, and the session would look dead in one store and alive in the other.
+Rows past `expires_at` are deleted by an hourly sweep, not by the logout
+request. `idx_access_denylist_expires` is the index that sweep uses.
+
+`JWT_KID`, `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, and `REFRESH_TOKEN_PEPPER` are
+read from the validated config. The signing keys are not a second copy taken
+from `process.env` beside the pepper.
 
 `kid` is how a signing key rotates without a gap. The verifier accepts the
 current `JWT_KID`. During an overlap the previous public key would be accepted
@@ -642,12 +650,15 @@ be signed by the new key. Refresh tokens are not signed by this key, so they
 do not care which `kid` is current. This build keeps one current key. A header
 `kid` that is not `JWT_KID` is 401.
 
-Ownership is not a guard. The guard runs before the order row exists in the
-handler, and it does not know `buyer_id`. `OrdersService.findOne` loads the
-row, returns 404 when it is missing, and returns 403 when the token's subject
-is a different buyer. Role checks are the other way around: `RolesGuard` only
-needs the role cached on the token, so `POST /products` is seller or admin,
-and a buyer gets 403. A missing or broken token is 401 on both routes.
+`GET /orders`, `GET /orders/:id`, `PATCH /orders/:id`, and `POST /orders` all
+require an access token. Ownership is not a guard. The guard runs before the
+order row exists in the handler, and it does not know `buyer_id`.
+`OrdersService.findOne` and `updateStatus` load the row, return 404 when it is
+missing, and return 403 when the token's subject is a different buyer. The
+list is the same rule as a filter: only rows whose `buyer_id` is the token
+subject. Role checks are the other way around: `RolesGuard` only needs the
+role cached on the token, so `POST /products` is seller or admin, and a buyer
+gets 403. A missing or broken token is 401.
 
 Public-key fingerprints (SHA-256 of the SPKI PEM). Dev and prod are different
 keys. These are not the private keys, and the grader generates its own pair.

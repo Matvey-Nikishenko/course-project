@@ -24,7 +24,11 @@ export type SigningKeys = {
   publicKey: KeyObject;
 };
 
-export function loadSigningKeys(env: NodeJS.ProcessEnv): SigningKeys {
+export function loadSigningKeys(env: {
+  JWT_KID?: string;
+  JWT_PRIVATE_KEY?: string;
+  JWT_PUBLIC_KEY?: string;
+}): SigningKeys {
   const kid = env.JWT_KID ?? '';
   const privatePem = Buffer.from(env.JWT_PRIVATE_KEY ?? '', 'base64').toString('utf8');
   const publicPem = Buffer.from(env.JWT_PUBLIC_KEY ?? '', 'base64').toString('utf8');
