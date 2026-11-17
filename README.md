@@ -34,6 +34,8 @@ Entities: **User** (`buyer` / `seller`), **Product**, **Order**, **OrderItem**,
 | 2026-10-22 | `order.placed` is at-least-once plus an idempotent insert | RabbitMQ does not offer exactly-once delivery. The effect is `INSERT … ON CONFLICT (event_id) DO NOTHING`, so a redelivery applies once. |
 | 2026-10-27 | Checkout and `order.placed` share one database COMMIT | The broker cannot join that transaction. A relay publishes only after commit, and the consumer dedupes the extra delivery. |
 | 2026-11-05 | Two Redis processes: cache is `allkeys-lru`, queue is `noeviction` | `maxmemory-policy` is one setting for the whole process. Sessions and the BullMQ queue sit on the noeviction instance so a cache eviction cannot drop them. |
+| 2026-11-09 | Access tokens are ES256 JWTs; refresh tokens are opaque and hashed | OWASP marks RS256 “Not recommended”. Verification passes `algorithms: ['ES256']`. Logout revokes the refresh family and the access `jti` in one Postgres commit. |
+| 2026-11-11 | Files go to object storage through a presigned URL | The API decides the key and checks the object with HeadObject. Bytes are uploaded past the API. A new public asset is a new hashed name, so the cache is never invalidated. |
 
 ## Configuration
 
@@ -415,7 +417,9 @@ curl -s 'http://127.0.0.1:21620/can-i-deploy?pacticipant=web-app&version=1.0.0&t
 ## Realtime
 
 A status change is `PATCH /orders/:id` with `{ "status": "new" | "paid" | "shipped" | "cancelled" }`.
-`OrdersService.updateStatus` saves the row and publishes on `OrderEventsService`.
+The caller is the access token. A missing order is 404, another buyer's order is 403,
+and the row is saved only after that check. `OrdersService.updateStatus` then
+publishes on `OrderEventsService`.
 The gateway and `GET /orders/:id/events` only listen — they do not emit.
 
 WebSocket: the socket identifies itself in `handshake.auth` (`{ userId }`) at
@@ -605,12 +609,220 @@ scheduled-runs=2
 
 `ttl-distinct` moves from run to run. On this stand it was 36. The floor is 5.
 
+## Auth
+
+Login returns a pair. The access token is an ES256 JWT that lives 10 minutes.
+The refresh token is a random string, not a JWT. The database stores
+`HMAC-SHA256(pepper, token)`, so a dump of `refresh_tokens` is not a dump of
+live sessions. ES256 is the signature algorithm because OWASP marks RS256 as
+“Not recommended” and prefers ES256, PS256, or EdDSA. Verification always
+passes `algorithms: ['ES256']` (RFC 8725 §3.1). A token whose payload was
+rewritten and whose old signature was left in place is rejected.
+
+Every refresh token from one login shares a `family_id`. A successful refresh
+marks the presented token `used_at` and inserts the successor in the same
+transaction. Presenting a token that already has `used_at` is reuse: the
+transaction revokes every row in that family, commits, and then the request
+returns 401. There is no grace window. Two parallel refreshes of the same
+token look like theft, and the client has to serialize refresh onto one
+promise. The role on the access token is a cache. A demoted admin stays an
+admin until that access token's `exp`. The next refresh reads `users.role`
+again and the new access token carries the new role.
+
+Logout is two actions because the two tokens are not the same kind of secret.
+The refresh token is a row, so `revoked_at` on the family is enough. The
+access token is self-contained and stays valid until `exp`, so its `jti` goes
+onto `access_denylist` with `expires_at` equal to that `exp`. Both writes are
+one Postgres commit. Putting the denylist in Redis and the family revoke in
+Postgres would be a dual write: one of the two can succeed and the other can
+fail, and the session would look dead in one store and alive in the other.
+Rows past `expires_at` are deleted by an hourly sweep, not by the logout
+request. `idx_access_denylist_expires` is the index that sweep uses.
+
+`JWT_KID`, `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, and `REFRESH_TOKEN_PEPPER` are
+read from the validated config. The signing keys are not a second copy taken
+from `process.env` beside the pepper.
+
+`kid` is how a signing key rotates without a gap. The verifier accepts the
+current `JWT_KID`. During an overlap the previous public key would be accepted
+for the access tokens still inside their 10 minute TTL, and new tokens would
+be signed by the new key. Refresh tokens are not signed by this key, so they
+do not care which `kid` is current. This build keeps one current key. A header
+`kid` that is not `JWT_KID` is 401.
+
+`GET /orders`, `GET /orders/:id`, `PATCH /orders/:id`, and `POST /orders` all
+require an access token. Ownership is not a guard. The guard runs before the
+order row exists in the handler, and it does not know `buyer_id`.
+`OrdersService.findOne` and `updateStatus` load the row, return 404 when it is
+missing, and return 403 when the token's subject is a different buyer. The
+list is the same rule as a filter: only rows whose `buyer_id` is the token
+subject. Role checks are the other way around: `RolesGuard` only needs the
+role cached on the token, so `POST /products` is seller or admin, and a buyer
+gets 403. A missing or broken token is 401.
+
+Public-key fingerprints (SHA-256 of the SPKI PEM). Dev and prod are different
+keys. These are not the private keys, and the grader generates its own pair.
+
+```text
+dev  2283d49b714df0209d3bae33616ebd50cd9f8dffd7d0f4706192cb894673e9a3
+prod a427556623568d453ae04546261bc462b7bebf77c346f44d2d1fb0f56b2b510f
+```
+
+| Змінна | Джерело | Навіщо |
+| --- | --- | --- |
+| `JWT_KID` | сховище (#11) | which signing key verified this access token |
+| `JWT_PRIVATE_KEY` | сховище (#11) | base64 of the PKCS#8 PEM; signs access tokens |
+| `JWT_PUBLIC_KEY` | сховище (#11) | base64 of the SPKI PEM; verifies access tokens |
+| `REFRESH_TOKEN_PEPPER` | сховище (#11) | HMAC pepper for refresh-token hashes |
+
+`npm run start` does not open the store. Without those four variables it
+exits non-zero and names the one that is missing. `npm run start:vault`,
+`demo:auth`, `demo:reuse`, and `demo:rbac` go through
+`scripts/with-secrets.sh`.
+
+## Files
+
+Uploads are two steps. `POST /uploads/intent` checks the access token, allows
+only `image/jpeg`, `image/png`, `image/webp`, and `application/octet-stream`,
+and builds the object key itself: `uploads/{userId}/{uuid}.{ext}`. The
+extension comes from the content type. The filename the client sends, including
+`../../etc/passwd`, is not copied into the key. `POST /uploads/commit` calls
+HeadObject and accepts the row only when the object exists and its size matches
+the intent. A commit with no bytes is 409.
+
+The presigned URL lives **300 seconds**. An avatar is chosen in a form and
+uploaded immediately, and a presigned URL cannot be revoked: there is no `jti`
+and no denylist for it. Seven days would also be a lie under short-lived role
+credentials. The upload demo sets `PRESIGN_EXPIRES_SECONDS=12` so it can show
+`expired=400` without waiting five minutes. The production value stays 300.
+Garage answers an expired presigned PUT with 400 InvalidRequest (`Date is too
+old`). A tampered path and an anonymous read stay 403.
+
+A file larger than one minimum part (5 MiB) uses multipart. S3 allows at most
+10 000 parts, and every part except the last must be at least 5 MiB, so the
+part size is `max(5 MiB, ceil(file / 10 000))`. The demo file is `2 * 5 MiB + 1`
+byte, which is three parts. The first process uploads two and stops. A second
+process calls `POST /uploads/resume`, which ListParts and signs only the
+missing part, so `resumed-parts=1`. Until CompleteMultipartUpload, HeadObject
+is 404. The multipart ETag ends in `-N` and is not the MD5 of the file.
+
+The bucket is private. Public assets are read through a small edge in
+`src/storage/edge.ts`: it fetches the object with the storage credentials,
+caches it in memory, and answers with `X-Cache: HIT` or `MISS`. That is the
+local form of CloudFront with Origin Access Control: the browser talks to the
+cache, and only the cache talks to the bucket. The edge stores a response only
+when the object itself was uploaded with
+`Cache-Control: public, max-age=31536000, immutable`. A public name is
+`assets/app.{sha256}.css`. A new deploy is a new name, so nothing is
+invalidated. The stand is Garage (`dxflrs/garage:v2.5.0`, S3 on port 3900):
+one node, `replication_factor = 1`, a private bucket, path-style requests.
+`s3_region` is `us-east-1` so the AWS SDK credential scope matches
+`STORAGE_REGION`. The same client code talks to AWS S3 when `STORAGE_ENDPOINT`
+is empty.
+
+On AWS the bucket policy that lets one distribution read, and no other
+distribution in the world, is:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowCloudFrontRead",
+      "Effect": "Allow",
+      "Principal": { "Service": "cloudfront.amazonaws.com" },
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::BUCKET_NAME/*",
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceArn": "arn:aws:cloudfront::ACCOUNT_ID:distribution/DISTRIBUTION_ID"
+        }
+      }
+    }
+  ]
+}
+```
+
+Block Public Access stays on. Without the `AWS:SourceArn` condition the
+statement would trust every CloudFront distribution.
+
+Pending rows older than a day are aborted and deleted by a sweep in the API
+process: AbortMultipartUpload, DeleteObject, then the row. Incomplete multipart
+uploads are also covered by a lifecycle rule,
+`AbortIncompleteMultipartUpload` after 7 days. A rule that expires objects
+after 30 days does not abort those uploads; they are different actions.
+Double-clicking upload sends one `Idempotency-Key` and keeps a single pending
+row. Private downloads would be `GET /uploads/:id` → 302 onto a fresh
+one-minute presigned URL, so the guard stays on the authorization path and the
+bytes still skip the API. Presigned URLs are not written to logs. The log line
+is the file id and the object key.
+
+A repeated run of each demo deletes its own prefix and aborts leftover
+multipart uploads before it starts.
+
+```text
+intent=200
+key-from-server=1
+api-alive=0
+put-offline=200
+commit=200
+commit-without-bytes=409
+tampered=403
+expired=400
+
+head-before-complete=404
+resumed-parts=1
+complete=200
+size-match=1
+etag-multipart=1
+
+direct=403
+edge-miss=200
+edge-hit=200
+cache-hit=1
+new-name=1
+new-url=200
+content-changed=1
+```
+
+| Змінна | Джерело | Навіщо |
+| --- | --- | --- |
+| `STORAGE_ACCESS_KEY` | сховище (#11) | access key of the object store |
+| `STORAGE_SECRET_KEY` | сховище (#11) | secret key used to sign presigned URLs |
+| `STORAGE_ENDPOINT` | compose / оточення | empty on AWS; `http://127.0.0.1:3900` on the stand |
+| `STORAGE_BUCKET` | compose / оточення | bucket name, `hw26-files` on the stand |
+| `STORAGE_REGION` | compose / оточення | signing region, `us-east-1` |
+| `PRESIGN_EXPIRES_SECONDS` | default in code | presigned lifetime, 300 seconds |
+
+`demo:upload`, `demo:multipart`, and `demo:cdn` go through
+`scripts/with-secrets.sh`.
+
 ## Grading
 
 ```bash
 docker compose up -d --wait
 export DB_HOST=127.0.0.1 DB_PORT=6432 DB_USER=admin DB_PASSWORD=admin-bootstrap-only DB_NAME=marketplace
 export SKIP_VAULT=1    # grader has no access to the store
+
+# One-off ES256 pair. The real signing key stays in the store.
+# PEM is base64 so a multiline export does not break the decoder.
+node -e 'const {generateKeyPairSync}=require("node:crypto");
+const k=generateKeyPairSync("ec",{namedCurve:"P-256",
+  privateKeyEncoding:{type:"pkcs8",format:"pem"},
+  publicKeyEncoding:{type:"spki",format:"pem"}});
+const fs=require("node:fs");
+fs.writeFileSync("/tmp/priv.b64",Buffer.from(k.privateKey).toString("base64"));
+fs.writeFileSync("/tmp/pub.b64",Buffer.from(k.publicKey).toString("base64"));'
+export JWT_KID=grader
+export JWT_PRIVATE_KEY="$(cat /tmp/priv.b64)"
+export JWT_PUBLIC_KEY="$(cat /tmp/pub.b64)"
+export REFRESH_TOKEN_PEPPER=grader-pepper
+
+export STORAGE_ENDPOINT=http://127.0.0.1:3900
+export STORAGE_ACCESS_KEY=hw26user
+export STORAGE_SECRET_KEY=hw26secretpass01
+export STORAGE_BUCKET=hw26-files
+export STORAGE_REGION=us-east-1
 
 npm ci
 npx tsc --noEmit
@@ -641,6 +853,14 @@ npm run demo:cache
 npm run demo:session
 npm run demo:ratelimit
 npm run demo:queue
+
+npm run demo:auth
+npm run demo:reuse
+npm run demo:rbac
+
+npm run demo:upload
+npm run demo:multipart
+npm run demo:cdn
 
 export DATABASE_URL=postgres://admin:admin-bootstrap-only@127.0.0.1:6432/marketplace
 export SKIP_VAULT=1
