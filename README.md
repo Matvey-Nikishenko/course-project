@@ -814,6 +814,35 @@ The runtime password arrives from the HW#11 store through `scripts/with-secrets.
 
 Measured on this machine: `demo:image` printed `stages=2`, `shell-inside=0`, `runtime-uid=65532`, and `token-in-history=0`, `token-in-config=0`, `token-in-layers=0`. `demo:rollout` printed `requests=5694`, `ok=5694`, `failed=0`, `rollout-seconds=13`. `demo:pdb` printed `healthy=2`, `minAvailable=1`, `evict-1=201`, `evict-2=429`. `npm run scan` counted `found=13` CRITICAL+HIGH; `SCAN_MAX=-1` exits non-zero with `gate=fail`, and `SCAN_MAX=99999` exits 0 with `gate=pass`. The CI workflow calls the same script with `SCAN_MAX=200`.
 
+## Observability
+
+Logs are pino JSON on stdout. `trace_id` is the active OpenTelemetry span, read in the logger mixin, not a uuid and not a function argument. `userId`, `tenant` and `idempotencyKey` sit in `AsyncLocalStorage`, filled from `x-user-id`, `x-tenant` and `Idempotency-Key` before the handler runs. A catalog read logs three layers with the same id: `catalog.controller`, `catalog.service`, `catalog.repo`. The repository opens a child span, `catalog.repo.load`. Authorization and the password on `POST /auth/login` are listed in pino `redact` (`req.headers.authorization`, `req.body.password`); a nested field with no path is not hidden.
+
+RED metrics are `http_requests_total` and `http_request_duration_seconds`, labelled `method`, `route`, `status`. `route` is the template (`/catalog/:id`). Finite histogram buckets are `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60` seconds. The catalog read returns in well under a second; the top finite bucket is 60s so `histogram_quantile` does not clamp when a request is merely slow. A 5xx response sets the server span status to ERROR. 4xx stays unset.
+
+The stand is one container, `grafana/otel-lgtm:0.29.0` (`observability/` holds the dashboard and the Prometheus scrape). Grafana is on `22900`, Prometheus on `22901`, Tempo on `22904`, OTLP HTTP on `22918`. Docker Desktop here has 7.75 GiB. Before the stand, `docker stats` showed the kind node at about 1.17 GiB. After `docker compose up`, the LGTM container was 327 MiB and the image reported a 4 second startup. After the trace demos it was 422 MiB. Both fit together.
+
+The dashboard file is `observability/grafana/dashboards/red.json`. Datasource uid `prometheus` is provisioned by the image.
+
+| Panel | RED question | PromQL |
+| --- | --- | --- |
+| Rate | How many requests per second? | `sum by (route) (rate(http_requests_total[1m]))` |
+| Errors | How many of those are 5xx? | `sum by (route) (rate(http_requests_total{status=~"5.."}[1m]))` |
+| Duration | How slow is the 99th percentile? | `histogram_quantile(0.99, sum by (le, route) (rate(http_request_duration_seconds_bucket[1m])))` |
+
+Three runs of each demo printed the same lines. `demo:logs`: `non-json-lines=0`, `layers=3`, `distinct-trace-ids=1`, `trace-id-matches-header=1`, `burst=8`, `burst-trace-ids=8`, `burst-uneven=0`, `secret-req-logged=1`, `secret-in-logs=0`. `demo:metrics`: `sent-ok=40`, `sent-fail=10`, `counter-delta=50`, `errors-delta=10`, `above-top-bucket=0`, `series-before=2`, `series-after=2`. `demo:trace`: `spans=16`, `orphan-spans=0`, `trace-matches-header=1`, `trace-matches-log=1`, `span-status-error=1`.
+
+An SLI for this service is the share of catalog reads that are not 5xx. An SLO of 99.5% over 30 days leaves an error budget of `0.005 × 30 × 24 × 60 = 216` minutes in the month.
+
+| Змінна | Джерело | Навіщо |
+| --- | --- | --- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | сховище (#11) | OTLP HTTP endpoint of the collector |
+| `PROMETHEUS_URL` | сховище (#11) | Prometheus base URL |
+| `TRACE_API_URL` | сховище (#11) | Tempo query API |
+| `GRAFANA_URL` | сховище (#11) | Grafana base URL |
+| `GRAFANA_ADMIN_USER` | сховище (#11) | Grafana user |
+| `GRAFANA_ADMIN_PASSWORD` | сховище (#11) | Grafana password |
+
 ## Grading
 
 ```bash
@@ -894,6 +923,12 @@ export JWT_PUBLIC_KEY="$(cat /tmp/pub.b64)"
 export REFRESH_TOKEN_PEPPER=grader-pepper
 export STORAGE_ACCESS_KEY=hw26user
 export STORAGE_SECRET_KEY=hw26secretpass01
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:22918
+export PROMETHEUS_URL=http://127.0.0.1:22901
+export TRACE_API_URL=http://127.0.0.1:22904
+export GRAFANA_URL=http://127.0.0.1:22900
+export GRAFANA_ADMIN_USER=admin
+export GRAFANA_ADMIN_PASSWORD=admin
 printf 'dummy-npm-token' > .npm_token
 npm --prefix infra ci
 npm run image:build
@@ -905,6 +940,31 @@ npm run demo:pdb
 SCAN_MAX=-1 npm run scan || true
 SCAN_MAX=99999 npm run scan
 npm run destroy && npm run cluster:down
+
+export SKIP_VAULT=1
+export DB_URL=postgres://admin@127.0.0.1:6432/marketplace
+export DB_PASSWORD=admin-bootstrap-only
+node -e 'const {generateKeyPairSync}=require("node:crypto");
+const k=generateKeyPairSync("ec",{namedCurve:"P-256",
+  privateKeyEncoding:{type:"pkcs8",format:"pem"},
+  publicKeyEncoding:{type:"spki",format:"pem"}});
+const fs=require("node:fs");
+fs.writeFileSync("/tmp/priv.b64",Buffer.from(k.privateKey).toString("base64"));
+fs.writeFileSync("/tmp/pub.b64",Buffer.from(k.publicKey).toString("base64"));'
+export JWT_KID=grader
+export JWT_PRIVATE_KEY="$(cat /tmp/priv.b64)"
+export JWT_PUBLIC_KEY="$(cat /tmp/pub.b64)"
+export REFRESH_TOKEN_PEPPER=grader-pepper
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:22918
+export PROMETHEUS_URL=http://127.0.0.1:22901
+export TRACE_API_URL=http://127.0.0.1:22904
+export GRAFANA_URL=http://127.0.0.1:22900
+export GRAFANA_ADMIN_USER=admin
+export GRAFANA_ADMIN_PASSWORD=admin
+docker compose up -d --wait
+npm run demo:logs
+npm run demo:metrics
+npm run demo:trace
 ```
 
 `scripts/backup.sh` and `scripts/restore-drill.sh` read `DATABASE_URL` from

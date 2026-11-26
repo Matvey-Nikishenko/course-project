@@ -12,6 +12,7 @@ import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { ProbesController } from './probes/probes.controller';
+import { CatalogModule } from './catalog/catalog.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { ProbesController } from './probes/probes.controller';
     RedisModule,
     AuthModule,
     UploadsModule,
+    CatalogModule,
   ],
   controllers: [ProbesController],
 })
