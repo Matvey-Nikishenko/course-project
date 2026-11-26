@@ -843,6 +843,69 @@ An SLI for this service is the share of catalog reads that are not 5xx. An SLO o
 | `GRAFANA_ADMIN_USER` | сховище (#11) | Grafana user |
 | `GRAFANA_ADMIN_PASSWORD` | сховище (#11) | Grafana password |
 
+## AWS
+
+смуга: запасна (LocalStack)
+
+Region: `eu-central-1`. The programs are `infra/base` and `infra/demo`. The npm scripts are in `infra/base/package.json` (that path sorts first) and again at the repository root. Every one of them goes through `scripts/with-secrets.sh`.
+
+teardown-run: local. The fallback lane has no GitHub Actions run. After `pulumi destroy`, `evidence/demos.txt` contains `state-resources-left=0`. The same file records `tagged-resources-left=0`, `nat-left=0` and `eip-left=0` in `eu-central-1` and in `us-east-1`. `describe-db-instances` and `describe-load-balancers` answer HTTP 501 on this image, so those two counts are not printed as a zero the API did not return.
+
+`localstack/localstack:4.14.0` is pinned on host port `23166`. Pinning to a prior version will opt you out of any future updates or security patches. No `LOCALSTACK_AUTH_TOKEN` is used.
+
+If this AWS account ever existed before, the Free plan is not available: "You would be ineligible for free plan or Free Tier credits if you have an existing AWS account or have had one in the past." The budget and `pulumi destroy` are then the only protection. AWS Organizations and Control Tower were not created. A customer-managed KMS key was not created. No hosted zone was created.
+
+A month in the table below is 730 hours. The course snapshot of 24.08.2026, at the NBU rate of 25.08.2026, sums to $59.79 a month, which is $0.08191 an hour, $0.33 for four hours, and $1.97 a day. Lines I opened myself:
+
+| Line | Rate | Where I saw it | 730 hours |
+| --- | --- | --- | --- |
+| RDS PostgreSQL `db.t4g.micro`, Multi-AZ instance | $0.037/hour | AWS price list dated 24.11.2026, retrieved 25.11.2026 via Costfluent. Single-AZ on the same list is $0.019/hour. | $27.01 |
+| NAT Gateway, eu-central-1 | $0.052/hour, plus $0.052/GB processed | A price-list mirror updated 19.10.2026. The same page lists us-east-1 at $0.045/hour. | not in the $59.79 sum |
+| ALB | $0.027/hour in the 24.08.2026 snapshot | On 26.11.2026 the public ELB page's worked example uses $0.0225/hour and says a partial hour is billed as a full hour. That page did not print a Frankfurt dollar row, so the snapshot figure stays. | $19.71 |
+| gp3 20 GiB, Multi-AZ | $0.274/GiB-month in the snapshot | I did not open a newer Frankfurt gp3 page. | $5.48 |
+| Public IPv4 × 2 | $0.005/hour × 2 in the snapshot | I did not open a newer public-IPv4 page. | $7.30 |
+| LCU | $0.29 for the month | An assumption about a classroom load, not a price-list row. | $0.29 |
+
+RDS and NAT still match the snapshot, so the derivatives above stay. A partial NAT hour is billed as a full hour: $0.052 plus its public IPv4 $0.005 is $0.057. This run did not create a NAT gateway, so that $0.057 was not measured as an invoice. The failed update did allocate the gateway's address; `pulumi destroy` released it, and `eip-left=0`. RDS bills per second with a 10 minute minimum. Twelve hours of budget lag at the snapshot rate is about $0.98. The budget is a letter, not a brake.
+
+The budget resource is `aws.budgets.Budget`: COST, MONTHLY, `limitAmount: "5"`, notification type ACTUAL, GREATER_THAN, 20 percent. FORECASTED is not used. On a real account it is created before the VPC, and the address comes from `HW31_BUDGET_EMAIL`. Community LocalStack answers 501 for budgets, which would stop the free network from being created, so the call is skipped only when `AWS_ENDPOINT_URL` is set. The resource stays in `infra/base/index.ts`.
+
+LocalStack does not apply this IAM policy. I did not verify the policy locally, because it cannot be verified locally. A user with no policies, a user whose policy is Deny on every action, and the key `TOTALLY_FAKE_KEY_12345` all received HTTP 200, with `ENFORCE_IAM=1`. `evidence/localstack-iam.txt` records `deny-all=200`, `fake-key=200`, `enforce-iam-log-lines=0`. `simulate-principal-policy` did return `sim-allowed=allowed` for `rds:DeleteDBInstance` and `sim-denied=explicitDeny` for `rds:RebootDBInstance` (the command needs `--resource-arns '*'` here, or LocalStack raises InternalError). The allow had an empty `MatchedStatements` list, and an action the policy merely does not grant came back `explicitDeny` rather than `implicitDeny`. That is not the AWS decision engine. The same class of lie showed up in HW#26 step 7.4: LocalStack, used there as an S3 stand, accepted requests whose signatures it did not check and did not refuse an anonymous read. Garage does. An anonymous GET is 403, and an expired presign is HTTP 400.
+
+The CI role trusts `token.actions.githubusercontent.com`, requires `aud` `sts.amazonaws.com`, and limits `sub` to `repo:Matvey-Nikishenko/course-project:*`. No action is `*`. What each action is for:
+
+- `ec2:DescribeVpcs`, `ec2:DeleteVpc` — read and delete the VPC.
+- `ec2:DescribeSubnets`, `ec2:DeleteSubnet` — read and delete the four subnets.
+- `ec2:DescribeInternetGateways`, `ec2:DetachInternetGateway`, `ec2:DeleteInternetGateway` — detach and delete the internet gateway.
+- `ec2:DescribeRouteTables`, `ec2:DeleteRoute`, `ec2:DisassociateRouteTable`, `ec2:DeleteRouteTable` — remove routes, associations, and the tables.
+- `ec2:DescribeSecurityGroups`, `ec2:DescribeSecurityGroupRules`, `ec2:RevokeSecurityGroupIngress`, `ec2:RevokeSecurityGroupEgress`, `ec2:DeleteSecurityGroup` — remove the group rules, then the groups.
+- `ec2:DescribeNatGateways`, `ec2:DeleteNatGateway` — delete the NAT gateway when the demo flag created one.
+- `ec2:DescribeAddresses`, `ec2:ReleaseAddress` — release the NAT address. An address left behind is the `eip-left` line.
+- `ec2:DescribeNetworkInterfaces`, `ec2:DeleteNetworkInterface` — delete an interface that still holds a subnet or a security group.
+- `rds:DescribeDBInstances`, `rds:DeleteDBInstance` — find the instance and delete it. `rds:RebootDBInstance` is not granted. That is the negative simulation.
+- `rds:DescribeDBSubnetGroups`, `rds:DeleteDBSubnetGroup` — delete the subnet group after the instance.
+- `rds:ListTagsForResource` — read tags while deleting.
+- `elasticloadbalancing:DescribeLoadBalancers`, `elasticloadbalancing:DescribeListeners`, `elasticloadbalancing:DescribeTargetGroups`, `elasticloadbalancing:DescribeTargetHealth` — read the balancer before deleting it.
+- `elasticloadbalancing:DeleteListener`, `elasticloadbalancing:DeleteTargetGroup`, `elasticloadbalancing:DeleteLoadBalancer` — delete the listener, the target group, then the balancer.
+- `lambda:GetFunction`, `lambda:ListFunctions`, `lambda:GetPolicy`, `lambda:RemovePermission`, `lambda:DeleteFunction` — detach the balancer permission and delete the function.
+- `iam:GetRole`, `iam:ListRolePolicies`, `iam:GetRolePolicy`, `iam:DeleteRolePolicy`, `iam:ListAttachedRolePolicies`, `iam:DetachRolePolicy`, `iam:DeleteRole` — delete the inline policy and then the role.
+- `iam:GetOpenIDConnectProvider`, `iam:ListOpenIDConnectProviders`, `iam:DeleteOpenIDConnectProvider` — delete the GitHub OIDC provider after the role that trusts it.
+- `budgets:ViewBudget`, `budgets:ModifyBudget` — read the budget and delete it. Budgets has no separate delete action.
+- `tag:GetResources` — the per-region tag query in the emptiness check.
+- `sts:GetCallerIdentity` — confirm which account the role entered.
+
+Both simulation outputs are in `evidence/iam.txt`: `sim-allowed=allowed` and `sim-denied=explicitDeny`.
+
+RDS Multi-AZ against the HW#15 stack: the instance takes the primary, the standby failover, encryption of the volume, and one day of automated storage snapshots. It does not take PgBouncer. Pooling stays in the application, on port 6432. The standby is not a read replica, so reads do not move onto it. It does not take `scripts/backup.sh` or the restore drill. Those are a logical dump and a rehearsal of restoring it. A storage snapshot is not that rehearsal.
+
+KMS is the layer under the HW#11 store, the key that would wrap `ENCRYPTION_KEY`. `storageEncrypted: true` uses the AWS-managed `aws/rds` key. A customer-managed key was not created. That key would keep a line on the bill after the same day's destroy.
+
+The HW#28 state backend is `file://` on this laptop (`.pulumi`). A GitHub-hosted worker cannot see that directory, so a real account needs Pulumi Cloud or an S3 backend. This lane also uses a file backend, `.pulumi-aws`, because nothing is billed and the destroy runs here. `PULUMI_CONFIG_PASSPHRASE` stays in the process environment. `pulumi login` was not run.
+
+The base network, measured before it was destroyed: VPC `10.31.0.0/16`, two public subnets (`10.31.1.0/24`, `10.31.2.0/24`) and two private subnets (`10.31.11.0/24`, `10.31.12.0/24`) in `eu-central-1a` and `eu-central-1b`. The private route tables have no `0.0.0.0/0` route to the internet gateway. Port 80 is the only public ingress, on the balancer group. Port 8080 leaves that group only toward the application group. Port 5432 leaves the application group only toward the database group, and enters the database only from that group. There is no NAT in the base stack.
+
+The demo program declares a Multi-AZ PostgreSQL instance (`db.t4g.micro`, gp3 20 GiB, encrypted, one day of backups, not a Multi-AZ cluster), an internet-facing ALB, and a lambda target group. A transform registered before any resource sets `deletionProtection: false` and `skipFinalSnapshot: true`. `pulumi preview` of that program is `evidence/preview-demo.txt` and names `aws:rds/instance:Instance`. `pulumi up` is `evidence/501.txt`. This image's catalog call returns HTTP 404 `licensing.latest_version_not_found`, so the 501 text is "not included in your current license plan or has not yet been emulated by LocalStack", not the older sentence "not included within your LocalStack license". Both sentences are in the 4.14.0 sources. The catalog 404 selects the generic one. Failover, the HTTP check, and the NAT hour were not measured, because those APIs did not stand up. No AZ change, HTTP status, or billed hour was invented. The lambda target is created only when `AWS_ENDPOINT_URL` is unset: without the Docker socket, LocalStack accepts the function and then never finishes deleting it.
+
 ## Grading
 
 ```bash

@@ -1,0 +1,78 @@
+Previewing update (demo):
+
+ +  pulumi:pulumi:Stack hw31-demo create 
+@ previewing update....
+ +  pulumi:pulumi:Stack hw31-demo create read pulumi:pulumi:StackReference organization/hw31-base/base
+ +  pulumi:pulumi:Stack hw31-demo create read pulumi:pulumi:StackReference organization/hw31-base/base
+@ previewing update....
+ +  pulumi:providers:aws aws create 
+ +  aws:rds:SubnetGroup db create 
+ +  aws:lb:TargetGroup web create 
+ +  aws:lb:LoadBalancer web create 
+ +  aws:iam:Role health create 
+ +  aws:rds:Instance pg create 
+ +  aws:iam:RolePolicy health-logs create 
+ +  aws:lambda:Function health create 
+ +  aws:lb:Listener http create 
+ +  aws:lambda:Permission alb create 
+ +  aws:lb:TargetGroupAttachment web create 
+ +  pulumi:pulumi:Stack hw31-demo create 
+Outputs:
+    albDns        : [unknown]
+    dbEndpoint    : [unknown]
+    natCreated    : false
+    targetGroupArn: [unknown]
+
+Resources:
+    + 12 to create
+
+Updating (demo):
+
+ +  pulumi:pulumi:Stack hw31-demo creating (0s) 
+@ updating....
+ +  pulumi:pulumi:Stack hw31-demo creating (0s) read pulumi:pulumi:StackReference organization/hw31-base/base
+ +  pulumi:pulumi:Stack hw31-demo creating (0s) read pulumi:pulumi:StackReference organization/hw31-base/base
+@ updating....
+ +  pulumi:providers:aws aws creating (0s) 
+ +  pulumi:providers:aws aws created (0.00s) 
+ +  aws:rds:SubnetGroup db creating (0s) 
+ +  aws:iam:Role health creating (0s) 
+ +  aws:lb:LoadBalancer web creating (0s) 
+ +  aws:lb:TargetGroup web creating (0s) 
+ +  aws:lb:TargetGroup web creating (0s) error:   sdk-v2/provider2.go:574: sdk.helper_schema: reading ELBv2 Target Group (web-64e3428): operation error Elastic Load Balancing v2: DescribeTargetGroups, https response error StatusCode: 501, RequestID: 50f3ea0c-d4a8-4d47-805f-540992af62a1, api error InternalFailure: The API for service elbv2 is either not included in your current license plan or has not yet been emulated by LocalStack.: provider=aws@7.55.0
+ +  aws:lb:LoadBalancer web creating (0s) error:   sdk-v2/provider2.go:574: sdk.helper_schema: reading ELBv2 Load Balancer (web-2446b2e): operation error Elastic Load Balancing v2: DescribeLoadBalancers, https response error StatusCode: 501, RequestID: 6fe68dbb-ae13-462a-a4d1-3f0cf92a7c11, api error InternalFailure: The API for service elbv2 is either not included in your current license plan or has not yet been emulated by LocalStack.: provider=aws@7.55.0
+ +  aws:lb:TargetGroup web creating (0s) error: 1 error occurred:
+ +  aws:lb:LoadBalancer web creating (0s) error: 1 error occurred:
+ +  aws:lb:TargetGroup web **creating failed** error: 1 error occurred:
+ +  aws:lb:LoadBalancer web **creating failed** error: 1 error occurred:
+ +  aws:rds:SubnetGroup db creating (0s) error:   sdk-v2/provider2.go:574: sdk.helper_schema: creating RDS DB Subnet Group (db-ac6deff): operation error RDS: CreateDBSubnetGroup, https response error StatusCode: 501, RequestID: 16e53fab-7a29-4698-92a7-b8277bc680ea, api error InternalFailure: The API for service rds is either not included in your current license plan or has not yet been emulated by LocalStack.: provider=aws@7.55.0
+ +  aws:rds:SubnetGroup db creating (0s) error: 1 error occurred:
+ +  aws:rds:SubnetGroup db **creating failed** error: 1 error occurred:
+ +  aws:iam:Role health created (0.11s) 
+ +  pulumi:pulumi:Stack hw31-demo creating (1s) error: update failed
+ +  pulumi:pulumi:Stack hw31-demo **creating failed** 1 error
+Diagnostics:
+  pulumi:pulumi:Stack (hw31-demo):
+    error: update failed
+
+  aws:rds:SubnetGroup (db):
+    error:   sdk-v2/provider2.go:574: sdk.helper_schema: creating RDS DB Subnet Group (db-ac6deff): operation error RDS: CreateDBSubnetGroup, https response error StatusCode: 501, RequestID: 16e53fab-7a29-4698-92a7-b8277bc680ea, api error InternalFailure: The API for service rds is either not included in your current license plan or has not yet been emulated by LocalStack.: provider=aws@7.55.0
+    error: 1 error occurred:
+    	* creating RDS DB Subnet Group (db-ac6deff): operation error RDS: CreateDBSubnetGroup, https response error StatusCode: 501, RequestID: 16e53fab-7a29-4698-92a7-b8277bc680ea, api error InternalFailure: The API for service rds is either not included in your current license plan or has not yet been emulated by LocalStack.
+
+  aws:lb:LoadBalancer (web):
+    error:   sdk-v2/provider2.go:574: sdk.helper_schema: reading ELBv2 Load Balancer (web-2446b2e): operation error Elastic Load Balancing v2: DescribeLoadBalancers, https response error StatusCode: 501, RequestID: 6fe68dbb-ae13-462a-a4d1-3f0cf92a7c11, api error InternalFailure: The API for service elbv2 is either not included in your current license plan or has not yet been emulated by LocalStack.: provider=aws@7.55.0
+    error: 1 error occurred:
+    	* reading ELBv2 Load Balancer (web-2446b2e): operation error Elastic Load Balancing v2: DescribeLoadBalancers, https response error StatusCode: 501, RequestID: 6fe68dbb-ae13-462a-a4d1-3f0cf92a7c11, api error InternalFailure: The API for service elbv2 is either not included in your current license plan or has not yet been emulated by LocalStack.
+
+  aws:lb:TargetGroup (web):
+    error:   sdk-v2/provider2.go:574: sdk.helper_schema: reading ELBv2 Target Group (web-64e3428): operation error Elastic Load Balancing v2: DescribeTargetGroups, https response error StatusCode: 501, RequestID: 50f3ea0c-d4a8-4d47-805f-540992af62a1, api error InternalFailure: The API for service elbv2 is either not included in your current license plan or has not yet been emulated by LocalStack.: provider=aws@7.55.0
+    error: 1 error occurred:
+    	* reading ELBv2 Target Group (web-64e3428): operation error Elastic Load Balancing v2: DescribeTargetGroups, https response error StatusCode: 501, RequestID: 50f3ea0c-d4a8-4d47-805f-540992af62a1, api error InternalFailure: The API for service elbv2 is either not included in your current license plan or has not yet been emulated by LocalStack.
+
+Resources:
+    + 3 created
+    4 errored
+
+Duration: 3s
+

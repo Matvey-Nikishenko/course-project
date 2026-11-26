@@ -1,0 +1,6 @@
+name: hw31-base
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+description: Budget, network, and the CI role. Nothing in this stack is billed by the hour.

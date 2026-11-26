@@ -1,0 +1,67 @@
+name: teardown
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-central-1
+  PULUMI_BACKEND_URL: ${{ vars.PULUMI_BACKEND_URL }}
+
+jobs:
+  teardown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: pulumi
+        run: curl -fsSL https://get.pulumi.com | sh
+      - name: credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.HW31_TEARDOWN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: install
+        run: |
+          npm ci --prefix infra/demo
+          npm ci --prefix infra/base
+      - name: destroy
+        run: |
+          export PATH="$HOME/.pulumi/bin:$PATH"
+          pulumi destroy --yes --non-interactive --stack demo --cwd infra/demo
+          pulumi destroy --yes --non-interactive --stack base --cwd infra/base
+      - name: export
+        run: |
+          export PATH="$HOME/.pulumi/bin:$PATH"
+          pulumi stack export --stack base --cwd infra/base >/tmp/base-state.json
+          pulumi stack export --stack demo --cwd infra/demo >/tmp/demo-state.json
+      - name: emptiness
+        run: |
+          export PATH="$HOME/.pulumi/bin:$PATH"
+          base=$(jq '[.deployment.resources[]? | select(.type | startswith("aws:"))] | length' /tmp/base-state.json)
+          demo=$(jq '[.deployment.resources[]? | select(.type | startswith("aws:"))] | length' /tmp/demo-state.json)
+          echo "state-resources-left=$((base + demo))"
+          tagged=0
+          rds=0
+          alb=0
+          nat=0
+          eip=0
+          for R in "$AWS_REGION" us-east-1; do
+            tagged=$((tagged + $(aws resourcegroupstaggingapi get-resources --region "$R" --tag-filters Key=Project,Values=nodejs-pro-hw31 --query 'length(ResourceTagMappingList)' --output text)))
+            rds=$((rds + $(aws rds describe-db-instances --region "$R" --query 'length(DBInstances)' --output text)))
+            alb=$((alb + $(aws elbv2 describe-load-balancers --region "$R" --query 'length(LoadBalancers)' --output text)))
+            nat=$((nat + $(aws ec2 describe-nat-gateways --region "$R" --filter Name=state,Values=available --query 'length(NatGateways)' --output text)))
+            eip=$((eip + $(aws ec2 describe-addresses --region "$R" --query 'length(Addresses)' --output text)))
+          done
+          echo "tagged-resources-left=$tagged"
+          echo "rds-left=$rds"
+          echo "alb-left=$alb"
+          echo "nat-left=$nat"
+          echo "eip-left=$eip"
