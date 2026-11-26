@@ -1,0 +1,19 @@
+name: image-scan
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build bait and image
+        run: |
+          printf 'dummy-npm-token' > .npm_token
+          npm run image:build
+
+      - name: Scan with the working threshold
+        run: SCAN_MAX=200 npm run scan

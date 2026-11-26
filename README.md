@@ -797,6 +797,23 @@ content-changed=1
 `demo:upload`, `demo:multipart`, and `demo:cdn` go through
 `scripts/with-secrets.sh`.
 
+## Kubernetes
+
+The production image is `docker/Dockerfile`: a build stage on `node:22-slim`, then `gcr.io/distroless/nodejs22-debian12:nonroot` as uid `65532`. There is no shell in the runtime stage. The npm token is a BuildKit secret (`RUN --mount=type=secret`), read from `.npm_token`, which is not committed. The cluster is kind (`k8s/kind-config.yaml`), one control-plane node, no extra memory cap. Docker Desktop on this machine reports 7.75 GiB. With the API and Postgres running, `docker stats` showed the kind node at about 1.1 GiB. kind is used because minikube refuses `--memory` below 1800 MiB.
+
+`/healthz` answers while the process is alive, including the drain. `/readyz` answers only after `listen` and goes false on SIGTERM, before the socket closes. The deployment waits 4 seconds (`WARMUP_MS`) before `listen`, then drains for 5 seconds (`DRAIN_MS`). `terminationGracePeriodSeconds` is 20, so the grace window outlasts the drain. `maxUnavailable` is 0 and `maxSurge` is 1. A `startupProbe` on `/healthz` allows 30 failures at 2 seconds (60 seconds) before the first restart. Liveness alone, at a 10 second period and 3 failures, would kill the process after 30 seconds.
+
+`spec.replicas` stays 2 because this kind cluster has no metrics-server. The HPA is `autoscaling/v2` with min 2, max 4, and a CPU target, and it reports `cpu: <unknown>`. In a cluster that does run metrics-server, that same `replicas` field is written by both the Pulumi program and the HPA. The next `pulumi up` sets the count back, and the HPA sets it again. One of them has to stop writing the field.
+
+The runtime password arrives from the HW#11 store through `scripts/with-secrets.sh` into a Kubernetes Secret (`data`, base64, not `stringData`). The Deployment only has `secretKeyRef` and a file mount of that Secret. External Secrets Operator or the Secrets Store CSI driver would sync the same value without a Pulumi program holding it; neither is installed here. base64 is not encryption: kind's etcd stores the Secret in clear text.
+
+| Змінна | Джерело | Навіщо |
+| --- | --- | --- |
+| `APP_DB_PASSWORD` | сховище (#11) | password of the database, delivered in a Kubernetes Secret |
+| `PULUMI_CONFIG_PASSPHRASE` | сховище (#11) | passphrase that encrypts the local Pulumi state |
+
+Measured on this machine: `demo:image` printed `stages=2`, `shell-inside=0`, `runtime-uid=65532`, and `token-in-history=0`, `token-in-config=0`, `token-in-layers=0`. `demo:rollout` printed `requests=5694`, `ok=5694`, `failed=0`, `rollout-seconds=13`. `demo:pdb` printed `healthy=2`, `minAvailable=1`, `evict-1=201`, `evict-2=429`. `npm run scan` counted `found=13` CRITICAL+HIGH; `SCAN_MAX=-1` exits non-zero with `gate=fail`, and `SCAN_MAX=99999` exits 0 with `gate=pass`. The CI workflow calls the same script with `SCAN_MAX=200`.
+
 ## Grading
 
 ```bash
@@ -866,6 +883,28 @@ export DATABASE_URL=postgres://admin:admin-bootstrap-only@127.0.0.1:6432/marketp
 export SKIP_VAULT=1
 bash scripts/with-secrets.sh dev bash scripts/backup.sh
 bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
+
+export SKIP_VAULT=1
+export PULUMI_BACKEND_URL="file://$PWD/.pulumi"
+export PULUMI_CONFIG_PASSPHRASE=hw28-grading
+export APP_DB_PASSWORD=grader-secret
+export JWT_KID=grader
+export JWT_PRIVATE_KEY="$(cat /tmp/priv.b64)"
+export JWT_PUBLIC_KEY="$(cat /tmp/pub.b64)"
+export REFRESH_TOKEN_PEPPER=grader-pepper
+export STORAGE_ACCESS_KEY=hw26user
+export STORAGE_SECRET_KEY=hw26secretpass01
+printf 'dummy-npm-token' > .npm_token
+npm --prefix infra ci
+npm run image:build
+npm run cluster:up
+npm run up
+npm run demo:image
+npm run demo:rollout
+npm run demo:pdb
+SCAN_MAX=-1 npm run scan || true
+SCAN_MAX=99999 npm run scan
+npm run destroy && npm run cluster:down
 ```
 
 `scripts/backup.sh` and `scripts/restore-drill.sh` read `DATABASE_URL` from

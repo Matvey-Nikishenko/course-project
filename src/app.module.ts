@@ -11,6 +11,7 @@ import { BrokerModule } from './broker/broker.module';
 import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { ProbesController } from './probes/probes.controller';
 
 @Module({
   imports: [
@@ -32,5 +33,6 @@ import { UploadsModule } from './uploads/uploads.module';
     AuthModule,
     UploadsModule,
   ],
+  controllers: [ProbesController],
 })
 export class AppModule {}

@@ -367,6 +367,36 @@ paths:
           $ref: '#/components/responses/InternalServerError'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /healthz:
+    get:
+      operationId: getHealthz
+      tags: [health]
+      summary: Liveness, including while the process is draining
+      responses:
+        '200':
+          description: Process is up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /readyz:
+    get:
+      operationId: getReadyz
+      tags: [health]
+      summary: Readiness. False from SIGTERM until the socket closes.
+      responses:
+        '200':
+          description: Ready for traffic
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /health:
     get:
       operationId: getHealth
