@@ -1,0 +1,14 @@
+eu-central-1 tagged=0
+eu-central-1 rds-api=501
+eu-central-1 alb-api=501
+eu-central-1 nat=0
+eu-central-1 eip=0
+us-east-1 tagged=0
+us-east-1 rds-api=501
+us-east-1 alb-api=501
+us-east-1 nat=0
+us-east-1 eip=0
+state-resources-left=0
+tagged-resources-left=0
+nat-left=0
+eip-left=0
