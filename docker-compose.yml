@@ -153,6 +153,31 @@ services:
       timeout: 3s
       retries: 30
 
+  # One container: Grafana, Prometheus, Tempo and the OTel collector.
+  # Host ports sit in 22900–22999 so they do not collide with earlier stands.
+  otel-lgtm:
+    image: grafana/otel-lgtm:0.29.0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "22900:3000"
+      - "22901:9090"
+      - "22904:3200"
+      - "22918:4318"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./observability/grafana/dashboards/red.json:/otel-lgtm/grafana/conf/provisioning/dashboards/custom/red.json:ro
+      - ./observability/grafana/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/custom.yaml:ro
+      - ./observability/prometheus.yaml:/otel-lgtm/prometheus.yaml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+      start_period: 20s
+
 volumes:
   marketplace-db:
   redis-queue:
