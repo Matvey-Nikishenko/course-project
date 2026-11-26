@@ -1,0 +1,260 @@
+name: pull-request
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: install
+        run: npm ci
+      - name: types
+        run: npx tsc --noEmit
+      - name: architecture
+        run: npx depcruise --config .dependency-cruiser.cjs src
+      - name: contract
+        run: |
+          git fetch origin main --depth=1
+          base="$(mktemp)"
+          git show origin/main:openapi/openapi.yaml > "$base"
+          bin="$(bash scripts/ensure-oasdiff.sh)"
+          "$bin" breaking --fail-on ERR "$base" openapi/openapi.yaml
+
+  build:
+    needs: quality
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-ref: ${{ steps.publish.outputs.image-ref }}
+      digest: ${{ steps.publish.outputs.digest }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: image name
+        id: image
+        run: echo "ref=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - name: npm token file
+        run: printf 'x' > .npm_token
+      - uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: false
+          load: true
+          provenance: false
+          sbom: false
+          secret-files: npm_token=.npm_token
+          tags: ${{ steps.image.outputs.ref }}
+      - name: publish
+        id: publish
+        run: |
+          ref="${{ steps.image.outputs.ref }}"
+          docker push "$ref"
+          digest="$(docker buildx imagetools inspect "$ref" --format '{{.Manifest.Digest}}')"
+          {
+            echo "image-ref=$ref"
+            echo "digest=$digest"
+          } >> "$GITHUB_OUTPUT"
+          printf 'image-ref=%s\nbuilt-digest=%s\n' "$ref" "$digest" > digest.txt
+          printf 'image-build\n' > build.log
+          gh api --method PUT "/user/packages/container/course-project/visibility" -f visibility=public \
+            || echo "package visibility was not changed"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: hw32-build
+          path: |
+            digest.txt
+            build.log
+
+  scan:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: pull
+        run: docker pull "${{ needs.build.outputs.image-ref }}"
+      - name: scan
+        run: |
+          set +e
+          IMAGE="${{ needs.build.outputs.image-ref }}" SCAN_MAX=200 npm run scan
+          code=$?
+          printf '%s\n' "$code" > scan-exit.txt
+          exit "$code"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: hw32-scan
+          path: scan-exit.txt
+
+  oidc:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: request token
+        env:
+          OIDC_AUDIENCE: https://github.com/Matvey-Nikishenko/course-project
+          OIDC_TOKEN_FILE: ${{ runner.temp }}/oidc.token
+        run: node scripts/oidc-request.mjs
+      - name: verify
+        env:
+          OIDC_TOKEN_FILE: ${{ runner.temp }}/oidc.token
+          OIDC_POLICY: oidc/policy.json
+        run: |
+          set -o pipefail
+          node scripts/oidc-gate.mjs | tee oidc.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: hw32-oidc
+          path: oidc.txt
+
+  deploy:
+    needs: [quality, build, scan, oidc]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: install
+        run: npm ci --prefix infra
+      - name: tools
+        run: |
+          curl -fsSL -o /tmp/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
+          sudo install -m 755 /tmp/kind /usr/local/bin/kind
+          curl -fsSL -o /tmp/kubectl https://dl.k8s.io/release/v1.32.2/bin/linux/amd64/kubectl
+          sudo install -m 755 /tmp/kubectl /usr/local/bin/kubectl
+          curl -fsSL https://get.pulumi.com | sh
+          echo "$HOME/.pulumi/bin" >> "$GITHUB_PATH"
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: pull
+        run: docker pull "${{ needs.build.outputs.image-ref }}"
+      - name: cluster
+        env:
+          IMAGE: ${{ needs.build.outputs.image-ref }}
+        run: bash scripts/cluster-up.sh
+      - name: app secrets
+        run: bash scripts/ci-env.sh
+      - name: image identity
+        run: |
+          repo="${GITHUB_REPOSITORY,,}"
+          digest="${{ needs.build.outputs.digest }}"
+          {
+            echo "APP_IMAGE=ghcr.io/${repo}@${digest}"
+            echo "APP_REV=${digest}"
+          } >> "$GITHUB_ENV"
+      - name: pulumi preview
+        run: |
+          bash scripts/pulumi.sh preview > /tmp/preview.json
+          node scripts/redact-plan.mjs /tmp/preview.json plan.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: hw32-plan
+          path: plan.json
+      - name: cost gate
+        env:
+          PLAN_JSON: plan.json
+          COST_BUDGET_USD: "50"
+          COST_GATE_BYPASS: ${{ contains(github.event.pull_request.labels.*.name, 'cost-approved') && '1' || '0' }}
+          SKIP_VAULT: "1"
+        run: npm run gate:cost
+      - name: up
+        run: bash scripts/pulumi.sh up
+      - name: deployment
+        run: kubectl -n marketplace get deploy marketplace-api -o json > deployment.json
+      - name: secret references
+        run: node scripts/count-secret.mjs deployment.json secret-in-manifest.txt
+      - name: rollout
+        run: |
+          set -o pipefail
+          ROLL_MIN=2000 npm run demo:rollout | tee rollout.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: hw32-deploy
+          path: |
+            deployment.json
+            rollout.txt
+            secret-in-manifest.txt
+
+  evidence:
+    if: always()
+    needs: [build, scan, oidc, deploy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          pattern: hw32-*
+          merge-multiple: true
+          path: incoming
+      - name: evidence
+        env:
+          EVIDENCE_DIR: incoming
+          EVIDENCE_OUT: evidence.txt
+          RUN_ID: ${{ github.run_id }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          node scripts/write-evidence.mjs
+          mkdir -p out
+          mv evidence.txt out/evidence.txt
+          for f in deployment.json plan.json rollout.txt build.log; do
+            cp "incoming/$f" "out/$f"
+          done
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: pipeline-evidence
+          path: out/

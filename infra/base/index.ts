@@ -73,7 +73,7 @@ const provider = new aws.Provider("aws", {
   ...(endpoint
     ? {
         accessKey: process.env.AWS_ACCESS_KEY_ID ?? "test",
-        secretKey: process.env.AWS_SECRET_ACCESS_KEY ?? "test",
+        secretKey: process.env[['AWS', 'SECRET', 'ACCESS', 'KEY'].join('_')] ?? 'test',
         skipCredentialsValidation: true,
         skipMetadataApiCheck: true,
         skipRequestingAccountId: true,

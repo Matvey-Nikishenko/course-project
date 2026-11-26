@@ -63,6 +63,9 @@
     "demo:failover": "bash scripts/with-secrets.sh dev node demo/failover.mjs",
     "demo:nat": "bash scripts/with-secrets.sh dev node demo/nat.mjs",
     "demo:alb": "bash scripts/with-secrets.sh dev node demo/alb.mjs",
+    "demo:gates": "bash scripts/with-secrets.sh dev node demo/gates.mjs",
+    "demo:oidc": "bash scripts/with-secrets.sh dev node demo/oidc.mjs",
+    "gate:cost": "bash scripts/with-secrets.sh dev node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/gate-cost.mjs",
     "test:integration": "tsc -p tsconfig.spec.json && jest dist-test/test/integration",
     "test:e2e": "tsc -p tsconfig.spec.json && jest dist-test/test/e2e",
     "test:contract": "tsc -p tsconfig.spec.json && jest dist-test/test/contract/consumer.pact.test.js",
@@ -113,6 +116,7 @@
     "@types/node": "22.20.1",
     "@types/pg": "8.23.1",
     "@types/supertest": "7.2.1",
+    "dependency-cruiser": "18.9.0",
     "jest": "30.4.2",
     "supertest": "7.2.2",
     "typescript": "5.9.3"

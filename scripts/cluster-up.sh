@@ -5,4 +5,4 @@ cd "$ROOT"
 if ! kind get clusters | grep -qx marketplace; then
   kind create cluster --name marketplace --config k8s/kind-config.yaml
 fi
-kind load docker-image marketplace-api:hw28 --name marketplace
+kind load docker-image "${IMAGE:-marketplace-api:hw28}" --name marketplace

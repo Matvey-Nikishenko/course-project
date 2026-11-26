@@ -906,6 +906,52 @@ The base network, measured before it was destroyed: VPC `10.31.0.0/16`, two publ
 
 The demo program declares a Multi-AZ PostgreSQL instance (`db.t4g.micro`, gp3 20 GiB, encrypted, one day of backups, not a Multi-AZ cluster), an internet-facing ALB, and a lambda target group. A transform registered before any resource sets `deletionProtection: false` and `skipFinalSnapshot: true`. `pulumi preview` of that program is `evidence/preview-demo.txt` and names `aws:rds/instance:Instance`. `pulumi up` is `evidence/501.txt`. This image's catalog call returns HTTP 404 `licensing.latest_version_not_found`, so the 501 text is "not included in your current license plan or has not yet been emulated by LocalStack", not the older sentence "not included within your LocalStack license". Both sentences are in the 4.14.0 sources. The catalog 404 selects the generic one. Failover, the HTTP check, and the NAT hour were not measured, because those APIs did not stand up. No AZ change, HTTP status, or billed hour was invented. The lambda target is created only when `AWS_ENDPOINT_URL` is unset: without the Docker socket, LocalStack accepts the function and then never finishes deleting it.
 
+## CI/CD
+
+Merging a pull request is the deploy. The pull request workflow (`.github/workflows/pr.yml`) is the graded run. The deploy workflow (`.github/workflows/deploy.yml`) runs on a push to `main` and on `workflow_dispatch`, and it does not build an image.
+
+```
+quality ─────────────┐
+build → scan ────────┼→ deploy → evidence
+oidc ────────────────┘
+```
+
+`quality` runs `tsc --noEmit`, dependency-cruiser, and oasdiff against `openapi/openapi.yaml` on `main`. `build` is the only image build in the workflows. It pushes one tag, `ghcr.io/matvey-nikishenko/course-project:${{ github.sha }}`, and passes the registry digest to `deploy`. `scan` runs `npm run scan` with `SCAN_MAX=200`. `oidc` asks GitHub for an ID token and runs `scripts/oidc-gate.mjs` against `oidc/policy.json`. `deploy` starts kind, runs `pulumi preview`, the cost gate, then `pulumi up`, then `demo:rollout` with `ROLL_MIN=2000`. `evidence` uploads the `pipeline-evidence` artifact with `if: always()`.
+
+The pull request run deploys into a kind cluster named `marketplace` that exists only on that runner. Namespace `marketplace`, NodePort 30080. That is the preview environment. The `main` workflow pulls the same digest and applies it with the same Pulumi program. That is the promotion environment. The image package is public for the duration of grading, so a digest check can read GHCR without credentials. Registry writes use `GITHUB_TOKEN` (`packages: write`). No long-lived cloud key is stored.
+
+`head-sha` in the artifact is `github.event.pull_request.head.sha`. On a pull request, `github.sha` is the merge commit, and that is the human tag on the image. The cluster receives the digest, not the tag.
+
+| Secret | Why |
+| --- | --- |
+| `PACT_BROKER_URL` | Address of the Pact broker for the manual contract workflow. Empty means the compose broker on port 21620. |
+| `PACT_BROKER_TOKEN` | Token for that broker. It does not open a cloud account or the registry. |
+
+| Змінна | Джерело | Навіщо |
+| --- | --- | --- |
+| `JWT_KID` | сховище (#11) | signing key id, same variable as the auth section |
+| `JWT_PRIVATE_KEY` | сховище (#11) | ES256 private key, same variable as the auth section |
+| `JWT_PUBLIC_KEY` | сховище (#11) | ES256 public key, same variable as the auth section |
+| `REFRESH_TOKEN_PEPPER` | сховище (#11) | refresh-token pepper, same variable as the auth section |
+| `STORAGE_ACCESS_KEY` | сховище (#11) | object-store access key, same variable as the files section |
+| `STORAGE_SECRET_KEY` | сховище (#11) | object-store secret key, same variable as the files section |
+| `APP_DB_PASSWORD` | сховище (#11) | database password, same variable as the Kubernetes section |
+| `PULUMI_CONFIG_PASSPHRASE` | сховище (#11) | passphrase of the local Pulumi state |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | сховище (#11) | OTLP endpoint, same variable as the observability section |
+| `PROMETHEUS_URL` | сховище (#11) | Prometheus URL, same variable as the observability section |
+| `TRACE_API_URL` | сховище (#11) | Tempo URL, same variable as the observability section |
+| `GRAFANA_URL` | сховище (#11) | Grafana URL, same variable as the observability section |
+| `GRAFANA_ADMIN_USER` | сховище (#11) | Grafana user, same variable as the observability section |
+| `GRAFANA_ADMIN_PASSWORD` | сховище (#11) | Grafana password, same variable as the observability section |
+
+The pipeline's own credentials are not in this table. GitHub issues them for one job: `GITHUB_TOKEN` for GHCR, and an OIDC token for the gate in `scripts/oidc-gate.mjs`. The trust file is `oidc/policy.json`. It allows `sub` for this repository only, both the numeric form (`repo:Matvey-Nikishenko@54702689/course-project@1354860164:*`, this repository was created on 2026-09-02) and the classic `repo:Matvey-Nikishenko/course-project:*`. A token whose `sub` names another repository is refused even when the signature and `aud` are valid.
+
+GitHub masks a secret in a log only when the exact string appears. It does not mask a base64 rendering of that string, a value split across lines, or a tool that prints the same bytes in another shape. Masking is not a control. Five leak paths were closed with the store: git history, the application log, an image layer, `docker inspect`, and `docker history`. The job log is the sixth. No step that can see a secret runs `echo` of that secret, a bare `env`, `printenv`, or `set -x`.
+
+`src/mapping.ts` prices `resources.requests` on each container in the Pulumi plan. The rates are the Linux/X86 figures from the worked examples on the AWS Fargate pricing page, https://aws.amazon.com/fargate/pricing/, retrieved 2026-11-26: $0.000011244 per vCPU-second and $0.000001235 per GB-second, US East (N. Virginia). A month is 730 hours, the same convention as the AWS section. The kind cluster is not billed. The gate compares that monthly sum with `COST_BUDGET_USD`. The lecture's rule of thumb is a change above $10 a month or above 20 percent. The script enforces the absolute budget the grader sets, so the same plan can fail a budget of 0 and pass a budget of 999999. A pull request that carries the bypass label still prints `gate=fail` or `gate=pass` and then exits 0.
+
+cost-gate-bypass-label: cost-approved
+
 ## Grading
 
 ```bash
@@ -1039,6 +1085,21 @@ app and scripts use host port **6432** (PgBouncer). Direct Postgres stays on
 **5433** for rotate/admin. The cache Redis is **6379** (`allkeys-lru`). The
 queue Redis is **6380** (`noeviction`). Those values are not store secrets:
 the containers are thrown away with `down -v`.
+
+```bash
+git clone https://github.com/Matvey-Nikishenko/course-project.git && cd course-project && git checkout hw-32
+
+npm ci
+
+export SKIP_VAULT=1
+export APP_DB_PASSWORD=grader-secret
+
+npm run demo:gates
+npm run demo:oidc
+PLAN_JSON=/tmp/hw32/plan.json COST_BUDGET_USD=0 npm run gate:cost
+```
+
+`demo:gates` and `demo:oidc` do not call GitHub and do not need a cluster. `gate:cost` reads `plan.json` from the `pipeline-evidence` artifact of a successful run. That file is not committed.
 
 ## HW#9
 

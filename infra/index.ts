@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as k8s from '@pulumi/kubernetes';
+import * as pulumi from '@pulumi/pulumi';
 
-const IMAGE = 'marketplace-api:hw28';
+const IMAGE = process.env.APP_IMAGE?.trim() || 'marketplace-api:hw28';
 const NAMESPACE = 'marketplace';
 const APP = 'marketplace-api';
 
@@ -44,8 +45,8 @@ const namespace = new k8s.core.v1.Namespace(
   { provider },
 );
 
-function b64(name: string): string {
-  return Buffer.from(process.env[name] ?? '', 'utf8').toString('base64');
+function b64(name: string): pulumi.Output<string> {
+  return pulumi.secret(Buffer.from(process.env[name] ?? '', 'utf8').toString('base64'));
 }
 
 const secret = new k8s.core.v1.Secret(
