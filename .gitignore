@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-cost/
 dist-test/
 spec.json
 pacts/
@@ -17,5 +18,8 @@ secrets/
 backups/
 .npm_token
 .pulumi/
+.pulumi-aws/
 infra/node_modules/
 infra/bin/
+infra/base/bin/
+infra/demo/bin/

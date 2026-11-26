@@ -1,0 +1,10 @@
+config:
+  aws:region: eu-central-1
+  aws:defaultTags:
+    tags:
+      Project: nodejs-pro-hw31
+      Stack: demo
+      ManagedBy: pulumi
+  hw31:baseStack: organization/hw31-base/base
+  hw31:withNat: "false"
+encryptionsalt: v1:4ve7fjWwXzA=:v1:1lYFhcOQyE9RHlIG:GLagLwF96CdL16BTh5AEKR4mCjq0jw==

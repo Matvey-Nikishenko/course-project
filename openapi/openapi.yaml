@@ -367,6 +367,28 @@ paths:
           $ref: '#/components/responses/InternalServerError'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+  /catalog/{id}:
+    get:
+      operationId: getCatalogCard
+      tags: [catalog]
+      summary: Catalog card by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Catalog card
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogCard'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /healthz:
     get:
       operationId: getHealthz
@@ -536,6 +558,13 @@ components:
           schema:
             $ref: '#/components/schemas/Problem'
   schemas:
+    CatalogCard:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id:
+          type: string
     Health:
       type: object
       additionalProperties: false

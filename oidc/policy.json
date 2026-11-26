@@ -1,0 +1,8 @@
+{
+  "iss": "https://token.actions.githubusercontent.com",
+  "aud": "https://github.com/Matvey-Nikishenko/course-project",
+  "sub": [
+    "repo:Matvey-Nikishenko@54702689/course-project@1354860164:*",
+    "repo:Matvey-Nikishenko/course-project:*"
+  ]
+}

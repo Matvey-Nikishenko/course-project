@@ -1,0 +1,2352 @@
+{
+    "version": 3,
+    "deployment": {
+        "manifest": {
+            "time": "2026-11-26T20:54:53.074076+02:00",
+            "magic": "594ba6748c409cbaafd6aaa207598fc54d8b5b125434234ce2ad107ee639fa54",
+            "version": "v3.261.0"
+        },
+        "secrets_providers": {
+            "type": "passphrase",
+            "state": {
+                "salt": "v1:3aW84gqSCZ0=:v1:Wl55+4QZcY8RD3t7:liVROfw9eBvUmo4+lioNGndlxgIaPQ=="
+            }
+        },
+        "resources": [
+            {
+                "urn": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "custom": false,
+                "type": "pulumi:pulumi:Stack",
+                "outputs": {
+                    "albSecurityGroupId": "sg-bd92ebea560d7a8b6",
+                    "appSecurityGroupId": "sg-0b89e2875f75c2dfd",
+                    "dbSecurityGroupId": "sg-4822bca23b72632bb",
+                    "privateSubnetIds": [
+                        "subnet-e73664d8c319026ab",
+                        "subnet-26afc21fabb56ad2e"
+                    ],
+                    "publicSubnetIds": [
+                        "subnet-774022ee4d4cb6bf9",
+                        "subnet-f9fbf642f09efc963"
+                    ],
+                    "roleArn": "arn:aws:iam::000000000000:role/hw31-teardown",
+                    "roleName": "hw31-teardown",
+                    "teardownActions": [
+                        "ec2:DescribeVpcs",
+                        "ec2:DescribeSubnets",
+                        "ec2:DescribeInternetGateways",
+                        "ec2:DescribeRouteTables",
+                        "ec2:DescribeSecurityGroups",
+                        "ec2:DescribeSecurityGroupRules",
+                        "ec2:DescribeNatGateways",
+                        "ec2:DescribeAddresses",
+                        "ec2:DescribeNetworkInterfaces",
+                        "ec2:DeleteVpc",
+                        "ec2:DeleteSubnet",
+                        "ec2:DetachInternetGateway",
+                        "ec2:DeleteInternetGateway",
+                        "ec2:DeleteRoute",
+                        "ec2:DeleteRouteTable",
+                        "ec2:DisassociateRouteTable",
+                        "ec2:DeleteSecurityGroup",
+                        "ec2:RevokeSecurityGroupIngress",
+                        "ec2:RevokeSecurityGroupEgress",
+                        "ec2:DeleteNatGateway",
+                        "ec2:ReleaseAddress",
+                        "ec2:DeleteNetworkInterface",
+                        "rds:DescribeDBInstances",
+                        "rds:DescribeDBSubnetGroups",
+                        "rds:DeleteDBInstance",
+                        "rds:DeleteDBSubnetGroup",
+                        "rds:ListTagsForResource",
+                        "elasticloadbalancing:DescribeLoadBalancers",
+                        "elasticloadbalancing:DescribeTargetGroups",
+                        "elasticloadbalancing:DescribeListeners",
+                        "elasticloadbalancing:DescribeTargetHealth",
+                        "elasticloadbalancing:DeleteLoadBalancer",
+                        "elasticloadbalancing:DeleteTargetGroup",
+                        "elasticloadbalancing:DeleteListener",
+                        "lambda:GetFunction",
+                        "lambda:ListFunctions",
+                        "lambda:DeleteFunction",
+                        "lambda:GetPolicy",
+                        "lambda:RemovePermission",
+                        "iam:GetRole",
+                        "iam:ListRolePolicies",
+                        "iam:GetRolePolicy",
+                        "iam:DeleteRolePolicy",
+                        "iam:ListAttachedRolePolicies",
+                        "iam:DetachRolePolicy",
+                        "iam:DeleteRole",
+                        "iam:GetOpenIDConnectProvider",
+                        "iam:ListOpenIDConnectProviders",
+                        "iam:DeleteOpenIDConnectProvider",
+                        "budgets:ViewBudget",
+                        "budgets:ModifyBudget",
+                        "tag:GetResources",
+                        "sts:GetCallerIdentity"
+                    ],
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "created": "2026-11-26T18:54:34.848995Z",
+                "modified": "2026-11-26T18:54:34.848995Z",
+                "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#38,19",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#38,19"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#601,38"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws",
+                "custom": true,
+                "id": "2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "type": "pulumi:providers:aws",
+                "inputs": {
+                    "__internal": {},
+                    "accessKey": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "v1:hGFedYc0+8jZkL1A:pTEkvxT90x99qQF23hd8JGoLHIcFSA=="
+                    },
+                    "defaultTags": "{\"tags\":{\"ManagedBy\":\"pulumi\",\"Project\":\"nodejs-pro-hw31\",\"Stack\":\"base\"}}",
+                    "endpoints": "[{\"budgets\":\"http://127.0.0.1:23166\",\"ec2\":\"http://127.0.0.1:23166\",\"elasticloadbalancing\":\"http://127.0.0.1:23166\",\"elasticloadbalancingv2\":\"http://127.0.0.1:23166\",\"elb\":\"http://127.0.0.1:23166\",\"elbv2\":\"http://127.0.0.1:23166\",\"iam\":\"http://127.0.0.1:23166\",\"lambda\":\"http://127.0.0.1:23166\",\"rds\":\"http://127.0.0.1:23166\",\"resourcegroupstagging\":\"http://127.0.0.1:23166\",\"resourcegroupstaggingapi\":\"http://127.0.0.1:23166\",\"s3\":\"http://127.0.0.1:23166\",\"sts\":\"http://127.0.0.1:23166\"}]",
+                    "region": "eu-central-1",
+                    "s3UsePathStyle": "true",
+                    "secretKey": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "v1:XxaJ7qQCYJm9qLDz:m/yU3v55bqAn/PYOyldGslWkY+zW3g=="
+                    },
+                    "skipCredentialsValidation": "true",
+                    "skipMetadataApiCheck": "true",
+                    "skipRegionValidation": "true",
+                    "skipRequestingAccountId": "true",
+                    "version": "7.55.0"
+                },
+                "outputs": {
+                    "accessKey": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "v1:hGFedYc0+8jZkL1A:pTEkvxT90x99qQF23hd8JGoLHIcFSA=="
+                    },
+                    "defaultTags": "{\"tags\":{\"ManagedBy\":\"pulumi\",\"Project\":\"nodejs-pro-hw31\",\"Stack\":\"base\"}}",
+                    "endpoints": "[{\"budgets\":\"http://127.0.0.1:23166\",\"ec2\":\"http://127.0.0.1:23166\",\"elasticloadbalancing\":\"http://127.0.0.1:23166\",\"elasticloadbalancingv2\":\"http://127.0.0.1:23166\",\"elb\":\"http://127.0.0.1:23166\",\"elbv2\":\"http://127.0.0.1:23166\",\"iam\":\"http://127.0.0.1:23166\",\"lambda\":\"http://127.0.0.1:23166\",\"rds\":\"http://127.0.0.1:23166\",\"resourcegroupstagging\":\"http://127.0.0.1:23166\",\"resourcegroupstaggingapi\":\"http://127.0.0.1:23166\",\"s3\":\"http://127.0.0.1:23166\",\"sts\":\"http://127.0.0.1:23166\"}]",
+                    "region": "eu-central-1",
+                    "s3UsePathStyle": "true",
+                    "secretKey": {
+                        "4dabf18193072939515e22adb298388d": "1b47061264138c4ac30d75fd1eb44270",
+                        "ciphertext": "v1:XxaJ7qQCYJm9qLDz:m/yU3v55bqAn/PYOyldGslWkY+zW3g=="
+                    },
+                    "skipCredentialsValidation": "true",
+                    "skipMetadataApiCheck": "true",
+                    "skipRegionValidation": "true",
+                    "skipRequestingAccountId": "true",
+                    "version": "7.55.0"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "propertyDependencies": {
+                    "accessKey": [],
+                    "defaultTags": [],
+                    "endpoints": [],
+                    "region": [],
+                    "s3UsePathStyle": [],
+                    "secretKey": [],
+                    "skipCredentialsValidation": [],
+                    "skipMetadataApiCheck": [],
+                    "skipRegionValidation": [],
+                    "skipRequestingAccountId": []
+                },
+                "additionalSecretOutputs": [
+                    "accessKey",
+                    "secretKey",
+                    "token"
+                ],
+                "created": "2026-11-26T18:54:37.93995Z",
+                "modified": "2026-11-26T18:54:37.93995Z",
+                "sourcePosition": "project:///node_modules/@pulumi/provider.ts#148,9",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/provider.ts#148,9"
+                    },
+                    {
+                        "sourcePosition": "project:///index.ts#70,18"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:iam/openIdConnectProvider:OpenIdConnectProvider::github",
+                "custom": true,
+                "id": "arn:aws:iam::000000000000:oidc-provider/token.actions.githubusercontent.com",
+                "type": "aws:iam/openIdConnectProvider:OpenIdConnectProvider",
+                "inputs": {
+                    "__defaults": [],
+                    "clientIdLists": [
+                        "sts.amazonaws.com"
+                    ],
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "thumbprintLists": [
+                        "6938fd4d98bab03faadb97b34396831e3780aea1",
+                        "1c58a3a8518e8759bf075b76b750d4f2df264fcd"
+                    ],
+                    "url": "https://token.actions.githubusercontent.com"
+                },
+                "outputs": {
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "clientIdLists": {
+                                    "arr": {}
+                                },
+                                "tagsAll": {
+                                    "map": {}
+                                },
+                                "thumbprintLists": {
+                                    "arr": {}
+                                }
+                            },
+                            "renamed": {
+                                "clientIdLists": "client_id_list",
+                                "thumbprintLists": "thumbprint_list"
+                            }
+                        }
+                    },
+                    "arn": "arn:aws:iam::000000000000:oidc-provider/token.actions.githubusercontent.com",
+                    "clientIdLists": [
+                        "sts.amazonaws.com"
+                    ],
+                    "id": "arn:aws:iam::000000000000:oidc-provider/token.actions.githubusercontent.com",
+                    "tags": null,
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "thumbprintLists": [
+                        "6938fd4d98bab03faadb97b34396831e3780aea1",
+                        "1c58a3a8518e8759bf075b76b750d4f2df264fcd"
+                    ],
+                    "url": "token.actions.githubusercontent.com"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "clientIdLists": [],
+                    "thumbprintLists": [],
+                    "url": []
+                },
+                "created": "2026-11-26T18:54:41.617227Z",
+                "modified": "2026-11-26T18:54:41.617227Z",
+                "sourcePosition": "project:///index.ts#289,14",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#289,14"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:iam/role:Role::teardown",
+                "custom": true,
+                "id": "hw31-teardown",
+                "type": "aws:iam/role:Role",
+                "inputs": {
+                    "__defaults": [
+                        "maxSessionDuration",
+                        "path"
+                    ],
+                    "assumeRolePolicy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Federated\":\"arn:aws:iam::000000000000:oidc-provider/token.actions.githubusercontent.com\"},\"Action\":\"sts:AssumeRoleWithWebIdentity\",\"Condition\":{\"StringEquals\":{\"token.actions.githubusercontent.com:aud\":\"sts.amazonaws.com\"},\"StringLike\":{\"token.actions.githubusercontent.com:sub\":\"repo:Matvey-Nikishenko/course-project:*\"}}}]}",
+                    "maxSessionDuration": 3600,
+                    "name": "hw31-teardown",
+                    "path": "/",
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    }
+                },
+                "outputs": {
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "inlinePolicies": {
+                                    "arr": {}
+                                },
+                                "managedPolicyArns": {
+                                    "arr": {}
+                                },
+                                "tagsAll": {
+                                    "map": {}
+                                }
+                            },
+                            "renamed": {
+                                "inlinePolicies": "inline_policy"
+                            }
+                        }
+                    },
+                    "arn": "arn:aws:iam::000000000000:role/hw31-teardown",
+                    "assumeRolePolicy": "{\"Statement\":[{\"Action\":\"sts:AssumeRoleWithWebIdentity\",\"Condition\":{\"StringEquals\":{\"token.actions.githubusercontent.com:aud\":\"sts.amazonaws.com\"},\"StringLike\":{\"token.actions.githubusercontent.com:sub\":\"repo:Matvey-Nikishenko/course-project:*\"}},\"Effect\":\"Allow\",\"Principal\":{\"Federated\":\"arn:aws:iam::000000000000:oidc-provider/token.actions.githubusercontent.com\"}}],\"Version\":\"2012-10-17\"}",
+                    "createDate": "2026-11-26T18:54:41Z",
+                    "description": "",
+                    "forceDetachPolicies": false,
+                    "id": "hw31-teardown",
+                    "inlinePolicies": [],
+                    "managedPolicyArns": [],
+                    "maxSessionDuration": 3600,
+                    "name": "hw31-teardown",
+                    "namePrefix": "",
+                    "path": "/",
+                    "permissionsBoundary": "",
+                    "tags": null,
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "uniqueId": "AROAQAAAAAAALUXCSIIO3"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:iam/openIdConnectProvider:OpenIdConnectProvider::github"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "assumeRolePolicy": [
+                        "urn:pulumi:base::hw31-base::aws:iam/openIdConnectProvider:OpenIdConnectProvider::github"
+                    ],
+                    "name": []
+                },
+                "created": "2026-11-26T18:54:41.785264Z",
+                "modified": "2026-11-26T18:54:41.785264Z",
+                "sourcePosition": "project:///index.ts#302,14",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#302,14"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:iam/rolePolicy:RolePolicy::teardown",
+                "custom": true,
+                "id": "hw31-teardown:teardown-7adfef2",
+                "type": "aws:iam/rolePolicy:RolePolicy",
+                "inputs": {
+                    "__defaults": [
+                        "name"
+                    ],
+                    "name": "teardown-7adfef2",
+                    "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"ec2:DescribeVpcs\",\"ec2:DescribeSubnets\",\"ec2:DescribeInternetGateways\",\"ec2:DescribeRouteTables\",\"ec2:DescribeSecurityGroups\",\"ec2:DescribeSecurityGroupRules\",\"ec2:DescribeNatGateways\",\"ec2:DescribeAddresses\",\"ec2:DescribeNetworkInterfaces\",\"ec2:DeleteVpc\",\"ec2:DeleteSubnet\",\"ec2:DetachInternetGateway\",\"ec2:DeleteInternetGateway\",\"ec2:DeleteRoute\",\"ec2:DeleteRouteTable\",\"ec2:DisassociateRouteTable\",\"ec2:DeleteSecurityGroup\",\"ec2:RevokeSecurityGroupIngress\",\"ec2:RevokeSecurityGroupEgress\",\"ec2:DeleteNatGateway\",\"ec2:ReleaseAddress\",\"ec2:DeleteNetworkInterface\",\"rds:DescribeDBInstances\",\"rds:DescribeDBSubnetGroups\",\"rds:DeleteDBInstance\",\"rds:DeleteDBSubnetGroup\",\"rds:ListTagsForResource\",\"elasticloadbalancing:DescribeLoadBalancers\",\"elasticloadbalancing:DescribeTargetGroups\",\"elasticloadbalancing:DescribeListeners\",\"elasticloadbalancing:DescribeTargetHealth\",\"elasticloadbalancing:DeleteLoadBalancer\",\"elasticloadbalancing:DeleteTargetGroup\",\"elasticloadbalancing:DeleteListener\",\"lambda:GetFunction\",\"lambda:ListFunctions\",\"lambda:DeleteFunction\",\"lambda:GetPolicy\",\"lambda:RemovePermission\",\"iam:GetRole\",\"iam:ListRolePolicies\",\"iam:GetRolePolicy\",\"iam:DeleteRolePolicy\",\"iam:ListAttachedRolePolicies\",\"iam:DetachRolePolicy\",\"iam:DeleteRole\",\"iam:GetOpenIDConnectProvider\",\"iam:ListOpenIDConnectProviders\",\"iam:DeleteOpenIDConnectProvider\",\"budgets:ViewBudget\",\"budgets:ModifyBudget\",\"tag:GetResources\",\"sts:GetCallerIdentity\"],\"Resource\":\"*\"}]}",
+                    "role": "hw31-teardown"
+                },
+                "outputs": {
+                    "__pulumi_raw_state_delta": {
+                        "obj": {}
+                    },
+                    "id": "hw31-teardown:teardown-7adfef2",
+                    "name": "teardown-7adfef2",
+                    "namePrefix": "",
+                    "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":[\"ec2:DescribeVpcs\",\"ec2:DescribeSubnets\",\"ec2:DescribeInternetGateways\",\"ec2:DescribeRouteTables\",\"ec2:DescribeSecurityGroups\",\"ec2:DescribeSecurityGroupRules\",\"ec2:DescribeNatGateways\",\"ec2:DescribeAddresses\",\"ec2:DescribeNetworkInterfaces\",\"ec2:DeleteVpc\",\"ec2:DeleteSubnet\",\"ec2:DetachInternetGateway\",\"ec2:DeleteInternetGateway\",\"ec2:DeleteRoute\",\"ec2:DeleteRouteTable\",\"ec2:DisassociateRouteTable\",\"ec2:DeleteSecurityGroup\",\"ec2:RevokeSecurityGroupIngress\",\"ec2:RevokeSecurityGroupEgress\",\"ec2:DeleteNatGateway\",\"ec2:ReleaseAddress\",\"ec2:DeleteNetworkInterface\",\"rds:DescribeDBInstances\",\"rds:DescribeDBSubnetGroups\",\"rds:DeleteDBInstance\",\"rds:DeleteDBSubnetGroup\",\"rds:ListTagsForResource\",\"elasticloadbalancing:DescribeLoadBalancers\",\"elasticloadbalancing:DescribeTargetGroups\",\"elasticloadbalancing:DescribeListeners\",\"elasticloadbalancing:DescribeTargetHealth\",\"elasticloadbalancing:DeleteLoadBalancer\",\"elasticloadbalancing:DeleteTargetGroup\",\"elasticloadbalancing:DeleteListener\",\"lambda:GetFunction\",\"lambda:ListFunctions\",\"lambda:DeleteFunction\",\"lambda:GetPolicy\",\"lambda:RemovePermission\",\"iam:GetRole\",\"iam:ListRolePolicies\",\"iam:GetRolePolicy\",\"iam:DeleteRolePolicy\",\"iam:ListAttachedRolePolicies\",\"iam:DetachRolePolicy\",\"iam:DeleteRole\",\"iam:GetOpenIDConnectProvider\",\"iam:ListOpenIDConnectProviders\",\"iam:DeleteOpenIDConnectProvider\",\"budgets:ViewBudget\",\"budgets:ModifyBudget\",\"tag:GetResources\",\"sts:GetCallerIdentity\"],\"Effect\":\"Allow\",\"Resource\":\"*\"}]}",
+                    "role": "hw31-teardown"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:iam/role:Role::teardown"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "policy": [],
+                    "role": [
+                        "urn:pulumi:base::hw31-base::aws:iam/role:Role::teardown"
+                    ]
+                },
+                "created": "2026-11-26T18:54:41.835354Z",
+                "modified": "2026-11-26T18:54:41.835354Z",
+                "sourcePosition": "project:///index.ts#330,1",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#330,1"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main",
+                "custom": true,
+                "id": "vpc-e1328a80977d1377d",
+                "type": "aws:ec2/vpc:Vpc",
+                "inputs": {
+                    "__defaults": [],
+                    "cidrBlock": "10.31.0.0/16",
+                    "enableDnsHostnames": true,
+                    "enableDnsSupport": true,
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "hw31"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "hw31",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    }
+                },
+                "outputs": {
+                    "__meta": "{\"schema_version\":\"1\"}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "tags": {
+                                    "map": {}
+                                },
+                                "tagsAll": {
+                                    "map": {}
+                                }
+                            }
+                        }
+                    },
+                    "arn": "arn:aws:ec2:eu-central-1:000000000000:vpc/vpc-e1328a80977d1377d",
+                    "assignGeneratedIpv6CidrBlock": false,
+                    "cidrBlock": "10.31.0.0/16",
+                    "defaultNetworkAclId": "acl-ed5a77513d487cffa",
+                    "defaultRouteTableId": "rtb-b901582837924b422",
+                    "defaultSecurityGroupId": "sg-4c4cd0569c69556d2",
+                    "dhcpOptionsId": "default",
+                    "enableDnsHostnames": true,
+                    "enableDnsSupport": true,
+                    "enableNetworkAddressUsageMetrics": false,
+                    "id": "vpc-e1328a80977d1377d",
+                    "instanceTenancy": "default",
+                    "ipv4IpamPoolId": null,
+                    "ipv4NetmaskLength": null,
+                    "ipv6AssociationId": "",
+                    "ipv6CidrBlock": "",
+                    "ipv6CidrBlockNetworkBorderGroup": "",
+                    "ipv6IpamPoolId": "",
+                    "ipv6NetmaskLength": 0,
+                    "mainRouteTableId": "rtb-b901582837924b422",
+                    "ownerId": "000000000000",
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "hw31"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "hw31",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    }
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "cidrBlock": [],
+                    "enableDnsHostnames": [],
+                    "enableDnsSupport": [],
+                    "tags": []
+                },
+                "created": "2026-11-26T18:54:42.679987Z",
+                "modified": "2026-11-26T18:54:42.679987Z",
+                "sourcePosition": "project:///index.ts#136,13",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#136,13"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/subnet:Subnet::private-b",
+                "custom": true,
+                "id": "subnet-26afc21fabb56ad2e",
+                "type": "aws:ec2/subnet:Subnet",
+                "inputs": {
+                    "__defaults": [],
+                    "availabilityZone": "eu-central-1b",
+                    "cidrBlock": "10.31.12.0/24",
+                    "mapPublicIpOnLaunch": false,
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "private-b"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "private-b",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":600000000000,\"delete\":1200000000000},\"schema_version\":\"1\"}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "tags": {
+                                    "map": {}
+                                },
+                                "tagsAll": {
+                                    "map": {}
+                                }
+                            }
+                        }
+                    },
+                    "arn": "arn:aws:ec2:eu-central-1:000000000000:subnet/subnet-26afc21fabb56ad2e",
+                    "assignIpv6AddressOnCreation": false,
+                    "availabilityZone": "eu-central-1b",
+                    "availabilityZoneId": "euc1-az2",
+                    "cidrBlock": "10.31.12.0/24",
+                    "customerOwnedIpv4Pool": "",
+                    "enableDns64": false,
+                    "enableLniAtDeviceIndex": 0,
+                    "enableResourceNameDnsARecordOnLaunch": false,
+                    "enableResourceNameDnsAaaaRecordOnLaunch": false,
+                    "id": "subnet-26afc21fabb56ad2e",
+                    "ipv4IpamPoolId": null,
+                    "ipv4NetmaskLength": null,
+                    "ipv6CidrBlock": "",
+                    "ipv6CidrBlockAssociationId": "",
+                    "ipv6IpamPoolId": null,
+                    "ipv6Native": false,
+                    "ipv6NetmaskLength": null,
+                    "mapCustomerOwnedIpOnLaunch": false,
+                    "mapPublicIpOnLaunch": false,
+                    "outpostArn": "",
+                    "ownerId": "000000000000",
+                    "privateDnsHostnameTypeOnLaunch": "ip-name",
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "private-b"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "private-b",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "availabilityZone": [],
+                    "cidrBlock": [],
+                    "mapPublicIpOnLaunch": [],
+                    "tags": [],
+                    "vpcId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                    ]
+                },
+                "created": "2026-11-26T18:54:42.884348Z",
+                "modified": "2026-11-26T18:54:42.884348Z",
+                "sourcePosition": "project:///index.ts#183,18",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#183,18"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/subnet:Subnet::private-a",
+                "custom": true,
+                "id": "subnet-e73664d8c319026ab",
+                "type": "aws:ec2/subnet:Subnet",
+                "inputs": {
+                    "__defaults": [],
+                    "availabilityZone": "eu-central-1a",
+                    "cidrBlock": "10.31.11.0/24",
+                    "mapPublicIpOnLaunch": false,
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "private-a"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "private-a",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":600000000000,\"delete\":1200000000000},\"schema_version\":\"1\"}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "tags": {
+                                    "map": {}
+                                },
+                                "tagsAll": {
+                                    "map": {}
+                                }
+                            }
+                        }
+                    },
+                    "arn": "arn:aws:ec2:eu-central-1:000000000000:subnet/subnet-e73664d8c319026ab",
+                    "assignIpv6AddressOnCreation": false,
+                    "availabilityZone": "eu-central-1a",
+                    "availabilityZoneId": "euc1-az1",
+                    "cidrBlock": "10.31.11.0/24",
+                    "customerOwnedIpv4Pool": "",
+                    "enableDns64": false,
+                    "enableLniAtDeviceIndex": 0,
+                    "enableResourceNameDnsARecordOnLaunch": false,
+                    "enableResourceNameDnsAaaaRecordOnLaunch": false,
+                    "id": "subnet-e73664d8c319026ab",
+                    "ipv4IpamPoolId": null,
+                    "ipv4NetmaskLength": null,
+                    "ipv6CidrBlock": "",
+                    "ipv6CidrBlockAssociationId": "",
+                    "ipv6IpamPoolId": null,
+                    "ipv6Native": false,
+                    "ipv6NetmaskLength": null,
+                    "mapCustomerOwnedIpOnLaunch": false,
+                    "mapPublicIpOnLaunch": false,
+                    "outpostArn": "",
+                    "ownerId": "000000000000",
+                    "privateDnsHostnameTypeOnLaunch": "ip-name",
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "private-a"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "private-a",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "availabilityZone": [],
+                    "cidrBlock": [],
+                    "mapPublicIpOnLaunch": [],
+                    "tags": [],
+                    "vpcId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                    ]
+                },
+                "created": "2026-11-26T18:54:42.916066Z",
+                "modified": "2026-11-26T18:54:42.916066Z",
+                "sourcePosition": "project:///index.ts#172,18",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#172,18"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/internetGateway:InternetGateway::igw",
+                "custom": true,
+                "id": "igw-7fbe6e41126edb424",
+                "type": "aws:ec2/internetGateway:InternetGateway",
+                "inputs": {
+                    "__defaults": [],
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "hw31"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "hw31",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":1200000000000,\"delete\":1200000000000,\"update\":1200000000000}}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "tags": {
+                                    "map": {}
+                                },
+                                "tagsAll": {
+                                    "map": {}
+                                }
+                            }
+                        }
+                    },
+                    "arn": "arn:aws:ec2:eu-central-1:000000000000:internet-gateway/igw-7fbe6e41126edb424",
+                    "id": "igw-7fbe6e41126edb424",
+                    "ownerId": "000000000000",
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "hw31"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "hw31",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "tags": [],
+                    "vpcId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                    ]
+                },
+                "created": "2026-11-26T18:54:42.921153Z",
+                "modified": "2026-11-26T18:54:42.921153Z",
+                "sourcePosition": "project:///index.ts#195,13",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#195,13"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/routeTable:RouteTable::public",
+                "custom": true,
+                "id": "rtb-724fbd33d6ad2a026",
+                "type": "aws:ec2/routeTable:RouteTable",
+                "inputs": {
+                    "__defaults": [],
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "public"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "public",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000,\"delete\":300000000000,\"update\":120000000000}}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "propagatingVgws": {
+                                    "arr": {}
+                                },
+                                "routes": {
+                                    "arr": {}
+                                },
+                                "tags": {
+                                    "map": {}
+                                },
+                                "tagsAll": {
+                                    "map": {}
+                                }
+                            },
+                            "renamed": {
+                                "routes": "route"
+                            }
+                        }
+                    },
+                    "arn": "arn:aws:ec2:eu-central-1:000000000000:route-table/rtb-724fbd33d6ad2a026",
+                    "id": "rtb-724fbd33d6ad2a026",
+                    "ownerId": "000000000000",
+                    "propagatingVgws": [],
+                    "region": "eu-central-1",
+                    "routes": [],
+                    "tags": {
+                        "Name": "public"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "public",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "tags": [],
+                    "vpcId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                    ]
+                },
+                "created": "2026-11-26T18:54:42.972058Z",
+                "modified": "2026-11-26T18:54:42.972058Z",
+                "sourcePosition": "project:///index.ts#197,18",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#197,18"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/routeTable:RouteTable::private",
+                "custom": true,
+                "id": "rtb-1ac4cfda0cec16f8b",
+                "type": "aws:ec2/routeTable:RouteTable",
+                "inputs": {
+                    "__defaults": [],
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "private"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "private",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000,\"delete\":300000000000,\"update\":120000000000}}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "propagatingVgws": {
+                                    "arr": {}
+                                },
+                                "routes": {
+                                    "arr": {}
+                                },
+                                "tags": {
+                                    "map": {}
+                                },
+                                "tagsAll": {
+                                    "map": {}
+                                }
+                            },
+                            "renamed": {
+                                "routes": "route"
+                            }
+                        }
+                    },
+                    "arn": "arn:aws:ec2:eu-central-1:000000000000:route-table/rtb-1ac4cfda0cec16f8b",
+                    "id": "rtb-1ac4cfda0cec16f8b",
+                    "ownerId": "000000000000",
+                    "propagatingVgws": [],
+                    "region": "eu-central-1",
+                    "routes": [],
+                    "tags": {
+                        "Name": "private"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "private",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "tags": [],
+                    "vpcId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                    ]
+                },
+                "created": "2026-11-26T18:54:42.979847Z",
+                "modified": "2026-11-26T18:54:42.979847Z",
+                "sourcePosition": "project:///index.ts#211,19",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#211,19"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/routeTableAssociation:RouteTableAssociation::private-a",
+                "custom": true,
+                "id": "rtbassoc-c1ef7bfd0de231764",
+                "type": "aws:ec2/routeTableAssociation:RouteTableAssociation",
+                "inputs": {
+                    "__defaults": [],
+                    "region": "eu-central-1",
+                    "routeTableId": "rtb-1ac4cfda0cec16f8b",
+                    "subnetId": "subnet-e73664d8c319026ab"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000,\"delete\":300000000000,\"update\":120000000000}}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {}
+                    },
+                    "gatewayId": "",
+                    "id": "rtbassoc-c1ef7bfd0de231764",
+                    "region": "eu-central-1",
+                    "routeTableId": "rtb-1ac4cfda0cec16f8b",
+                    "subnetId": "subnet-e73664d8c319026ab"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/routeTable:RouteTable::private",
+                    "urn:pulumi:base::hw31-base::aws:ec2/subnet:Subnet::private-a"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "routeTableId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/routeTable:RouteTable::private"
+                    ],
+                    "subnetId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/subnet:Subnet::private-a"
+                    ]
+                },
+                "created": "2026-11-26T18:54:43.117005Z",
+                "modified": "2026-11-26T18:54:43.117005Z",
+                "sourcePosition": "project:///index.ts#212,1",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#212,1"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/routeTableAssociation:RouteTableAssociation::private-b",
+                "custom": true,
+                "id": "rtbassoc-22920d0158d13d07c",
+                "type": "aws:ec2/routeTableAssociation:RouteTableAssociation",
+                "inputs": {
+                    "__defaults": [],
+                    "region": "eu-central-1",
+                    "routeTableId": "rtb-1ac4cfda0cec16f8b",
+                    "subnetId": "subnet-26afc21fabb56ad2e"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000,\"delete\":300000000000,\"update\":120000000000}}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {}
+                    },
+                    "gatewayId": "",
+                    "id": "rtbassoc-22920d0158d13d07c",
+                    "region": "eu-central-1",
+                    "routeTableId": "rtb-1ac4cfda0cec16f8b",
+                    "subnetId": "subnet-26afc21fabb56ad2e"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/routeTable:RouteTable::private",
+                    "urn:pulumi:base::hw31-base::aws:ec2/subnet:Subnet::private-b"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "routeTableId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/routeTable:RouteTable::private"
+                    ],
+                    "subnetId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/subnet:Subnet::private-b"
+                    ]
+                },
+                "created": "2026-11-26T18:54:43.147071Z",
+                "modified": "2026-11-26T18:54:43.147071Z",
+                "sourcePosition": "project:///index.ts#213,1",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#213,1"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::db",
+                "custom": true,
+                "id": "sg-4822bca23b72632bb",
+                "type": "aws:ec2/securityGroup:SecurityGroup",
+                "inputs": {
+                    "__defaults": [
+                        "name"
+                    ],
+                    "description": "Postgres, reachable only from the application tier",
+                    "name": "db-9635dcb",
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "db"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "db",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":600000000000,\"delete\":900000000000},\"schema_version\":\"1\"}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "egress": {
+                                    "arr": {}
+                                },
+                                "ingress": {
+                                    "arr": {}
+                                },
+                                "tags": {
+                                    "map": {}
+                                },
+                                "tagsAll": {
+                                    "map": {}
+                                }
+                            }
+                        }
+                    },
+                    "arn": "arn:aws:ec2:eu-central-1:000000000000:security-group/sg-4822bca23b72632bb",
+                    "description": "Postgres, reachable only from the application tier",
+                    "egress": [],
+                    "id": "sg-4822bca23b72632bb",
+                    "ingress": [],
+                    "name": "db-9635dcb",
+                    "namePrefix": "",
+                    "ownerId": "000000000000",
+                    "region": "eu-central-1",
+                    "revokeRulesOnDelete": false,
+                    "tags": {
+                        "Name": "db"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "db",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "description": [],
+                    "tags": [],
+                    "vpcId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                    ]
+                },
+                "created": "2026-11-26T18:54:43.230942Z",
+                "modified": "2026-11-26T18:54:43.230942Z",
+                "sourcePosition": "project:///index.ts#225,14",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#225,14"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::app",
+                "custom": true,
+                "id": "sg-0b89e2875f75c2dfd",
+                "type": "aws:ec2/securityGroup:SecurityGroup",
+                "inputs": {
+                    "__defaults": [
+                        "name"
+                    ],
+                    "description": "Application tier. No inbound from the internet.",
+                    "name": "app-673a446",
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "app"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "app",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":600000000000,\"delete\":900000000000},\"schema_version\":\"1\"}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "egress": {
+                                    "arr": {}
+                                },
+                                "ingress": {
+                                    "arr": {}
+                                },
+                                "tags": {
+                                    "map": {}
+                                },
+                                "tagsAll": {
+                                    "map": {}
+                                }
+                            }
+                        }
+                    },
+                    "arn": "arn:aws:ec2:eu-central-1:000000000000:security-group/sg-0b89e2875f75c2dfd",
+                    "description": "Application tier. No inbound from the internet.",
+                    "egress": [],
+                    "id": "sg-0b89e2875f75c2dfd",
+                    "ingress": [],
+                    "name": "app-673a446",
+                    "namePrefix": "",
+                    "ownerId": "000000000000",
+                    "region": "eu-central-1",
+                    "revokeRulesOnDelete": false,
+                    "tags": {
+                        "Name": "app"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "app",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "description": [],
+                    "tags": [],
+                    "vpcId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                    ]
+                },
+                "created": "2026-11-26T18:54:43.254488Z",
+                "modified": "2026-11-26T18:54:43.254488Z",
+                "sourcePosition": "project:///index.ts#220,15",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#220,15"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::alb",
+                "custom": true,
+                "id": "sg-bd92ebea560d7a8b6",
+                "type": "aws:ec2/securityGroup:SecurityGroup",
+                "inputs": {
+                    "__defaults": [
+                        "name"
+                    ],
+                    "description": "Public HTTP entry for the load balancer",
+                    "name": "alb-e491e7f",
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "alb"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "alb",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":600000000000,\"delete\":900000000000},\"schema_version\":\"1\"}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "egress": {
+                                    "arr": {}
+                                },
+                                "ingress": {
+                                    "arr": {}
+                                },
+                                "tags": {
+                                    "map": {}
+                                },
+                                "tagsAll": {
+                                    "map": {}
+                                }
+                            }
+                        }
+                    },
+                    "arn": "arn:aws:ec2:eu-central-1:000000000000:security-group/sg-bd92ebea560d7a8b6",
+                    "description": "Public HTTP entry for the load balancer",
+                    "egress": [],
+                    "id": "sg-bd92ebea560d7a8b6",
+                    "ingress": [],
+                    "name": "alb-e491e7f",
+                    "namePrefix": "",
+                    "ownerId": "000000000000",
+                    "region": "eu-central-1",
+                    "revokeRulesOnDelete": false,
+                    "tags": {
+                        "Name": "alb"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "alb",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "description": [],
+                    "tags": [],
+                    "vpcId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                    ]
+                },
+                "created": "2026-11-26T18:54:43.260548Z",
+                "modified": "2026-11-26T18:54:43.260548Z",
+                "sourcePosition": "project:///index.ts#215,15",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#215,15"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/route:Route::public-default",
+                "custom": true,
+                "id": "r-rtb-724fbd33d6ad2a0261080289494",
+                "type": "aws:ec2/route:Route",
+                "inputs": {
+                    "__defaults": [],
+                    "destinationCidrBlock": "0.0.0.0/0",
+                    "gatewayId": "igw-7fbe6e41126edb424",
+                    "region": "eu-central-1",
+                    "routeTableId": "rtb-724fbd33d6ad2a026"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000,\"delete\":300000000000,\"update\":120000000000}}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {}
+                    },
+                    "carrierGatewayId": "",
+                    "coreNetworkArn": "",
+                    "destinationCidrBlock": "0.0.0.0/0",
+                    "destinationIpv6CidrBlock": "",
+                    "destinationPrefixListId": "",
+                    "egressOnlyGatewayId": "",
+                    "gatewayId": "igw-7fbe6e41126edb424",
+                    "id": "r-rtb-724fbd33d6ad2a0261080289494",
+                    "instanceId": "",
+                    "instanceOwnerId": "",
+                    "localGatewayId": "",
+                    "natGatewayId": "",
+                    "networkInterfaceId": "",
+                    "odbNetworkArn": "",
+                    "origin": "CreateRoute",
+                    "region": "eu-central-1",
+                    "routeTableId": "rtb-724fbd33d6ad2a026",
+                    "state": "active",
+                    "transitGatewayId": "",
+                    "vpcEndpointId": "",
+                    "vpcPeeringConnectionId": ""
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/internetGateway:InternetGateway::igw",
+                    "urn:pulumi:base::hw31-base::aws:ec2/routeTable:RouteTable::public"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "destinationCidrBlock": [],
+                    "gatewayId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/internetGateway:InternetGateway::igw"
+                    ],
+                    "routeTableId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/routeTable:RouteTable::public"
+                    ]
+                },
+                "created": "2026-11-26T18:54:43.260623Z",
+                "modified": "2026-11-26T18:54:43.260623Z",
+                "sourcePosition": "project:///index.ts#198,1",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#198,1"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/securityGroupRule:SecurityGroupRule::alb-to-app",
+                "custom": true,
+                "id": "sgrule-1537108727",
+                "type": "aws:ec2/securityGroupRule:SecurityGroupRule",
+                "inputs": {
+                    "__defaults": [],
+                    "description": "Health checks and proxied HTTP to the application group.",
+                    "fromPort": 8080,
+                    "protocol": "tcp",
+                    "region": "eu-central-1",
+                    "securityGroupId": "sg-bd92ebea560d7a8b6",
+                    "sourceSecurityGroupId": "sg-0b89e2875f75c2dfd",
+                    "toPort": 8080,
+                    "type": "egress"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000},\"schema_version\":\"2\"}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {}
+                    },
+                    "cidrBlocks": null,
+                    "description": "Health checks and proxied HTTP to the application group.",
+                    "fromPort": 8080,
+                    "id": "sgrule-1537108727",
+                    "ipv6CidrBlocks": null,
+                    "prefixListIds": null,
+                    "protocol": "tcp",
+                    "region": "eu-central-1",
+                    "securityGroupId": "sg-bd92ebea560d7a8b6",
+                    "securityGroupRuleId": "sgr-c398b09793955d3e2",
+                    "self": false,
+                    "sourceSecurityGroupId": "sg-0b89e2875f75c2dfd",
+                    "toPort": 8080,
+                    "type": "egress"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::app",
+                    "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::alb"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "description": [],
+                    "fromPort": [],
+                    "protocol": [],
+                    "securityGroupId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::alb"
+                    ],
+                    "sourceSecurityGroupId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::app"
+                    ],
+                    "toPort": [],
+                    "type": []
+                },
+                "created": "2026-11-26T18:54:43.365562Z",
+                "modified": "2026-11-26T18:54:43.365562Z",
+                "sourcePosition": "project:///index.ts#246,1",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#246,1"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/securityGroupRule:SecurityGroupRule::db-from-app",
+                "custom": true,
+                "id": "sgrule-85937499",
+                "type": "aws:ec2/securityGroupRule:SecurityGroupRule",
+                "inputs": {
+                    "__defaults": [],
+                    "description": "Postgres from the application group only.",
+                    "fromPort": 5432,
+                    "protocol": "tcp",
+                    "region": "eu-central-1",
+                    "securityGroupId": "sg-4822bca23b72632bb",
+                    "sourceSecurityGroupId": "sg-0b89e2875f75c2dfd",
+                    "toPort": 5432,
+                    "type": "ingress"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000},\"schema_version\":\"2\"}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {}
+                    },
+                    "cidrBlocks": null,
+                    "description": "Postgres from the application group only.",
+                    "fromPort": 5432,
+                    "id": "sgrule-85937499",
+                    "ipv6CidrBlocks": null,
+                    "prefixListIds": null,
+                    "protocol": "tcp",
+                    "region": "eu-central-1",
+                    "securityGroupId": "sg-4822bca23b72632bb",
+                    "securityGroupRuleId": "sgr-3cf612c14c2b718e1",
+                    "self": false,
+                    "sourceSecurityGroupId": "sg-0b89e2875f75c2dfd",
+                    "toPort": 5432,
+                    "type": "ingress"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::db",
+                    "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::app"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "description": [],
+                    "fromPort": [],
+                    "protocol": [],
+                    "securityGroupId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::db"
+                    ],
+                    "sourceSecurityGroupId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::app"
+                    ],
+                    "toPort": [],
+                    "type": []
+                },
+                "created": "2026-11-26T18:54:43.37168Z",
+                "modified": "2026-11-26T18:54:43.37168Z",
+                "sourcePosition": "project:///index.ts#274,1",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#274,1"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/securityGroupRule:SecurityGroupRule::app-to-db",
+                "custom": true,
+                "id": "sgrule-1688549247",
+                "type": "aws:ec2/securityGroupRule:SecurityGroupRule",
+                "inputs": {
+                    "__defaults": [],
+                    "description": "The application opens Postgres connections. Nothing else leaves this group.",
+                    "fromPort": 5432,
+                    "protocol": "tcp",
+                    "region": "eu-central-1",
+                    "securityGroupId": "sg-0b89e2875f75c2dfd",
+                    "sourceSecurityGroupId": "sg-4822bca23b72632bb",
+                    "toPort": 5432,
+                    "type": "egress"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000},\"schema_version\":\"2\"}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {}
+                    },
+                    "cidrBlocks": null,
+                    "description": "The application opens Postgres connections. Nothing else leaves this group.",
+                    "fromPort": 5432,
+                    "id": "sgrule-1688549247",
+                    "ipv6CidrBlocks": null,
+                    "prefixListIds": null,
+                    "protocol": "tcp",
+                    "region": "eu-central-1",
+                    "securityGroupId": "sg-0b89e2875f75c2dfd",
+                    "securityGroupRuleId": "sgr-080ca73dd68c361f8",
+                    "self": false,
+                    "sourceSecurityGroupId": "sg-4822bca23b72632bb",
+                    "toPort": 5432,
+                    "type": "egress"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::app",
+                    "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::db"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "description": [],
+                    "fromPort": [],
+                    "protocol": [],
+                    "securityGroupId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::app"
+                    ],
+                    "sourceSecurityGroupId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::db"
+                    ],
+                    "toPort": [],
+                    "type": []
+                },
+                "created": "2026-11-26T18:54:43.378758Z",
+                "modified": "2026-11-26T18:54:43.378758Z",
+                "sourcePosition": "project:///index.ts#260,1",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#260,1"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/securityGroupRule:SecurityGroupRule::alb-http",
+                "custom": true,
+                "id": "sgrule-2508328353",
+                "type": "aws:ec2/securityGroupRule:SecurityGroupRule",
+                "inputs": {
+                    "__defaults": [],
+                    "cidrBlocks": [
+                        "0.0.0.0/0"
+                    ],
+                    "description": "HTTP from the internet. The load balancer is the only public door.",
+                    "fromPort": 80,
+                    "protocol": "tcp",
+                    "region": "eu-central-1",
+                    "securityGroupId": "sg-bd92ebea560d7a8b6",
+                    "toPort": 80,
+                    "type": "ingress"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000},\"schema_version\":\"2\"}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "cidrBlocks": {
+                                    "arr": {}
+                                }
+                            }
+                        }
+                    },
+                    "cidrBlocks": [
+                        "0.0.0.0/0"
+                    ],
+                    "description": "HTTP from the internet. The load balancer is the only public door.",
+                    "fromPort": 80,
+                    "id": "sgrule-2508328353",
+                    "ipv6CidrBlocks": null,
+                    "prefixListIds": null,
+                    "protocol": "tcp",
+                    "region": "eu-central-1",
+                    "securityGroupId": "sg-bd92ebea560d7a8b6",
+                    "securityGroupRuleId": "sgr-ef397de68767756a1",
+                    "self": false,
+                    "sourceSecurityGroupId": null,
+                    "toPort": 80,
+                    "type": "ingress"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::alb"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "cidrBlocks": [],
+                    "description": [],
+                    "fromPort": [],
+                    "protocol": [],
+                    "securityGroupId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/securityGroup:SecurityGroup::alb"
+                    ],
+                    "toPort": [],
+                    "type": []
+                },
+                "created": "2026-11-26T18:54:43.431305Z",
+                "modified": "2026-11-26T18:54:43.431305Z",
+                "sourcePosition": "project:///index.ts#232,1",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#232,1"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/subnet:Subnet::public-a",
+                "custom": true,
+                "id": "subnet-774022ee4d4cb6bf9",
+                "type": "aws:ec2/subnet:Subnet",
+                "inputs": {
+                    "__defaults": [],
+                    "availabilityZone": "eu-central-1a",
+                    "cidrBlock": "10.31.1.0/24",
+                    "mapPublicIpOnLaunch": true,
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "public-a"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "public-a",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":600000000000,\"delete\":1200000000000},\"schema_version\":\"1\"}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "tags": {
+                                    "map": {}
+                                },
+                                "tagsAll": {
+                                    "map": {}
+                                }
+                            }
+                        }
+                    },
+                    "arn": "arn:aws:ec2:eu-central-1:000000000000:subnet/subnet-774022ee4d4cb6bf9",
+                    "assignIpv6AddressOnCreation": false,
+                    "availabilityZone": "eu-central-1a",
+                    "availabilityZoneId": "euc1-az1",
+                    "cidrBlock": "10.31.1.0/24",
+                    "customerOwnedIpv4Pool": "",
+                    "enableDns64": false,
+                    "enableLniAtDeviceIndex": 0,
+                    "enableResourceNameDnsARecordOnLaunch": false,
+                    "enableResourceNameDnsAaaaRecordOnLaunch": false,
+                    "id": "subnet-774022ee4d4cb6bf9",
+                    "ipv4IpamPoolId": null,
+                    "ipv4NetmaskLength": null,
+                    "ipv6CidrBlock": "",
+                    "ipv6CidrBlockAssociationId": "",
+                    "ipv6IpamPoolId": null,
+                    "ipv6Native": false,
+                    "ipv6NetmaskLength": null,
+                    "mapCustomerOwnedIpOnLaunch": false,
+                    "mapPublicIpOnLaunch": true,
+                    "outpostArn": "",
+                    "ownerId": "000000000000",
+                    "privateDnsHostnameTypeOnLaunch": "ip-name",
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "public-a"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "public-a",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "availabilityZone": [],
+                    "cidrBlock": [],
+                    "mapPublicIpOnLaunch": [],
+                    "tags": [],
+                    "vpcId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                    ]
+                },
+                "created": "2026-11-26T18:54:52.912522Z",
+                "modified": "2026-11-26T18:54:52.912522Z",
+                "sourcePosition": "project:///index.ts#150,17",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#150,17"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/subnet:Subnet::public-b",
+                "custom": true,
+                "id": "subnet-f9fbf642f09efc963",
+                "type": "aws:ec2/subnet:Subnet",
+                "inputs": {
+                    "__defaults": [],
+                    "availabilityZone": "eu-central-1b",
+                    "cidrBlock": "10.31.2.0/24",
+                    "mapPublicIpOnLaunch": true,
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "public-b"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "public-b",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":600000000000,\"delete\":1200000000000},\"schema_version\":\"1\"}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {
+                            "ps": {
+                                "tags": {
+                                    "map": {}
+                                },
+                                "tagsAll": {
+                                    "map": {}
+                                }
+                            }
+                        }
+                    },
+                    "arn": "arn:aws:ec2:eu-central-1:000000000000:subnet/subnet-f9fbf642f09efc963",
+                    "assignIpv6AddressOnCreation": false,
+                    "availabilityZone": "eu-central-1b",
+                    "availabilityZoneId": "euc1-az2",
+                    "cidrBlock": "10.31.2.0/24",
+                    "customerOwnedIpv4Pool": "",
+                    "enableDns64": false,
+                    "enableLniAtDeviceIndex": 0,
+                    "enableResourceNameDnsARecordOnLaunch": false,
+                    "enableResourceNameDnsAaaaRecordOnLaunch": false,
+                    "id": "subnet-f9fbf642f09efc963",
+                    "ipv4IpamPoolId": null,
+                    "ipv4NetmaskLength": null,
+                    "ipv6CidrBlock": "",
+                    "ipv6CidrBlockAssociationId": "",
+                    "ipv6IpamPoolId": null,
+                    "ipv6Native": false,
+                    "ipv6NetmaskLength": null,
+                    "mapCustomerOwnedIpOnLaunch": false,
+                    "mapPublicIpOnLaunch": true,
+                    "outpostArn": "",
+                    "ownerId": "000000000000",
+                    "privateDnsHostnameTypeOnLaunch": "ip-name",
+                    "region": "eu-central-1",
+                    "tags": {
+                        "Name": "public-b"
+                    },
+                    "tagsAll": {
+                        "ManagedBy": "pulumi",
+                        "Name": "public-b",
+                        "Project": "nodejs-pro-hw31",
+                        "Stack": "base"
+                    },
+                    "vpcId": "vpc-e1328a80977d1377d"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "availabilityZone": [],
+                    "cidrBlock": [],
+                    "mapPublicIpOnLaunch": [],
+                    "tags": [],
+                    "vpcId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/vpc:Vpc::main"
+                    ]
+                },
+                "created": "2026-11-26T18:54:52.91253Z",
+                "modified": "2026-11-26T18:54:52.91253Z",
+                "sourcePosition": "project:///index.ts#161,17",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#161,17"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/routeTableAssociation:RouteTableAssociation::public-a",
+                "custom": true,
+                "id": "rtbassoc-e0c8c2c14de08cb07",
+                "type": "aws:ec2/routeTableAssociation:RouteTableAssociation",
+                "inputs": {
+                    "__defaults": [],
+                    "region": "eu-central-1",
+                    "routeTableId": "rtb-724fbd33d6ad2a026",
+                    "subnetId": "subnet-774022ee4d4cb6bf9"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000,\"delete\":300000000000,\"update\":120000000000}}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {}
+                    },
+                    "gatewayId": "",
+                    "id": "rtbassoc-e0c8c2c14de08cb07",
+                    "region": "eu-central-1",
+                    "routeTableId": "rtb-724fbd33d6ad2a026",
+                    "subnetId": "subnet-774022ee4d4cb6bf9"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/routeTable:RouteTable::public",
+                    "urn:pulumi:base::hw31-base::aws:ec2/subnet:Subnet::public-a"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "routeTableId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/routeTable:RouteTable::public"
+                    ],
+                    "subnetId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/subnet:Subnet::public-a"
+                    ]
+                },
+                "created": "2026-11-26T18:54:53.040343Z",
+                "modified": "2026-11-26T18:54:53.040343Z",
+                "sourcePosition": "project:///index.ts#207,1",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#207,1"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            },
+            {
+                "urn": "urn:pulumi:base::hw31-base::aws:ec2/routeTableAssociation:RouteTableAssociation::public-b",
+                "custom": true,
+                "id": "rtbassoc-51111f6d731f9915a",
+                "type": "aws:ec2/routeTableAssociation:RouteTableAssociation",
+                "inputs": {
+                    "__defaults": [],
+                    "region": "eu-central-1",
+                    "routeTableId": "rtb-724fbd33d6ad2a026",
+                    "subnetId": "subnet-f9fbf642f09efc963"
+                },
+                "outputs": {
+                    "__meta": "{\"e2bfb730-ecaa-11e6-8f88-34363bc7c4c0\":{\"create\":300000000000,\"delete\":300000000000,\"update\":120000000000}}",
+                    "__pulumi_raw_state_delta": {
+                        "obj": {}
+                    },
+                    "gatewayId": "",
+                    "id": "rtbassoc-51111f6d731f9915a",
+                    "region": "eu-central-1",
+                    "routeTableId": "rtb-724fbd33d6ad2a026",
+                    "subnetId": "subnet-f9fbf642f09efc963"
+                },
+                "parent": "urn:pulumi:base::hw31-base::pulumi:pulumi:Stack::hw31-base-base",
+                "dependencies": [
+                    "urn:pulumi:base::hw31-base::aws:ec2/routeTable:RouteTable::public",
+                    "urn:pulumi:base::hw31-base::aws:ec2/subnet:Subnet::public-b"
+                ],
+                "provider": "urn:pulumi:base::hw31-base::pulumi:providers:aws::aws::2a6e0a20-5cf0-4174-b894-644be7151f93",
+                "propertyDependencies": {
+                    "routeTableId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/routeTable:RouteTable::public"
+                    ],
+                    "subnetId": [
+                        "urn:pulumi:base::hw31-base::aws:ec2/subnet:Subnet::public-b"
+                    ]
+                },
+                "created": "2026-11-26T18:54:53.047387Z",
+                "modified": "2026-11-26T18:54:53.047387Z",
+                "sourcePosition": "project:///index.ts#208,1",
+                "stackTrace": [
+                    {
+                        "sourcePosition": "project:///index.ts#208,1"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3009,23"
+                    },
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/pulumi/vendor/ts-node@7.0.1/index.js#3011,12"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/cmd/run/run.ts#541,33"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/runtime/stack.ts#79,28"
+                    },
+                    {
+                        "sourcePosition": "project:///node_modules/@pulumi/resource.ts#1687,22"
+                    }
+                ]
+            }
+        ],
+        "metadata": {}
+    }
+}

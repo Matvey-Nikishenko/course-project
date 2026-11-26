@@ -1,0 +1,19 @@
+{
+  "name": "hw31-base",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "up:base": "bash ../../scripts/with-secrets.sh dev bash scripts/aws-up.sh base",
+    "up:demo": "bash ../../scripts/with-secrets.sh dev bash scripts/aws-up.sh demo",
+    "destroy:demo": "bash ../../scripts/with-secrets.sh dev bash scripts/aws-down.sh demo",
+    "destroy:base": "bash ../../scripts/with-secrets.sh dev bash scripts/aws-down.sh base",
+    "demo:failover": "bash ../../scripts/with-secrets.sh dev node demo/failover.mjs",
+    "demo:nat": "bash ../../scripts/with-secrets.sh dev node demo/nat.mjs",
+    "demo:alb": "bash ../../scripts/with-secrets.sh dev node demo/alb.mjs"
+  },
+  "dependencies": {
+    "@pulumi/aws": "7.55.0",
+    "@pulumi/pulumi": "3.276.0",
+    "typescript": "5.9.3"
+  }
+}

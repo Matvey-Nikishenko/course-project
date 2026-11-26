@@ -1,0 +1,93 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  oidc:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: promote main only
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "This workflow promotes main. The pull request workflow is the graded run."
+          exit 1
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: request token
+        env:
+          OIDC_AUDIENCE: https://github.com/Matvey-Nikishenko/course-project
+          OIDC_TOKEN_FILE: ${{ runner.temp }}/oidc.token
+        run: node scripts/oidc-request.mjs
+      - name: verify
+        env:
+          OIDC_TOKEN_FILE: ${{ runner.temp }}/oidc.token
+          OIDC_POLICY: oidc/policy.json
+        run: |
+          set -o pipefail
+          node scripts/oidc-gate.mjs | tee oidc.txt
+
+  deploy:
+    needs: oidc
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: install
+        run: npm ci --prefix infra
+      - name: tools
+        run: |
+          curl -fsSL -o /tmp/kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
+          sudo install -m 755 /tmp/kind /usr/local/bin/kind
+          curl -fsSL -o /tmp/kubectl https://dl.k8s.io/release/v1.32.2/bin/linux/amd64/kubectl
+          sudo install -m 755 /tmp/kubectl /usr/local/bin/kubectl
+          curl -fsSL https://get.pulumi.com | sh
+          echo "$HOME/.pulumi/bin" >> "$GITHUB_PATH"
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - name: pull
+        run: |
+          repo="${GITHUB_REPOSITORY,,}"
+          ref="ghcr.io/${repo}:${GITHUB_SHA}"
+          docker pull "$ref"
+          digest="$(docker buildx imagetools inspect "$ref" --format '{{.Manifest.Digest}}')"
+          {
+            echo "APP_IMAGE=ghcr.io/${repo}@${digest}"
+            echo "APP_REV=${digest}"
+            echo "IMAGE_REF=$ref"
+          } >> "$GITHUB_ENV"
+      - name: cluster
+        run: IMAGE="$IMAGE_REF" bash scripts/cluster-up.sh
+      - name: app secrets
+        run: bash scripts/ci-env.sh
+      - name: up
+        run: bash scripts/pulumi.sh up
+      - name: rollout
+        run: |
+          set -o pipefail
+          ROLL_MIN=2000 npm run demo:rollout | tee rollout.txt

@@ -814,6 +814,144 @@ The runtime password arrives from the HW#11 store through `scripts/with-secrets.
 
 Measured on this machine: `demo:image` printed `stages=2`, `shell-inside=0`, `runtime-uid=65532`, and `token-in-history=0`, `token-in-config=0`, `token-in-layers=0`. `demo:rollout` printed `requests=5694`, `ok=5694`, `failed=0`, `rollout-seconds=13`. `demo:pdb` printed `healthy=2`, `minAvailable=1`, `evict-1=201`, `evict-2=429`. `npm run scan` counted `found=13` CRITICAL+HIGH; `SCAN_MAX=-1` exits non-zero with `gate=fail`, and `SCAN_MAX=99999` exits 0 with `gate=pass`. The CI workflow calls the same script with `SCAN_MAX=200`.
 
+## Observability
+
+Logs are pino JSON on stdout. `trace_id` is the active OpenTelemetry span, read in the logger mixin, not a uuid and not a function argument. `userId`, `tenant` and `idempotencyKey` sit in `AsyncLocalStorage`, filled from `x-user-id`, `x-tenant` and `Idempotency-Key` before the handler runs. A catalog read logs three layers with the same id: `catalog.controller`, `catalog.service`, `catalog.repo`. The repository opens a child span, `catalog.repo.load`. Authorization and the password on `POST /auth/login` are listed in pino `redact` (`req.headers.authorization`, `req.body.password`); a nested field with no path is not hidden.
+
+RED metrics are `http_requests_total` and `http_request_duration_seconds`, labelled `method`, `route`, `status`. `route` is the template (`/catalog/:id`). Finite histogram buckets are `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60` seconds. The catalog read returns in well under a second; the top finite bucket is 60s so `histogram_quantile` does not clamp when a request is merely slow. A 5xx response sets the server span status to ERROR. 4xx stays unset.
+
+The stand is one container, `grafana/otel-lgtm:0.29.0` (`observability/` holds the dashboard and the Prometheus scrape). Grafana is on `22900`, Prometheus on `22901`, Tempo on `22904`, OTLP HTTP on `22918`. Docker Desktop here has 7.75 GiB. Before the stand, `docker stats` showed the kind node at about 1.17 GiB. After `docker compose up`, the LGTM container was 327 MiB and the image reported a 4 second startup. After the trace demos it was 422 MiB. Both fit together.
+
+The dashboard file is `observability/grafana/dashboards/red.json`. Datasource uid `prometheus` is provisioned by the image.
+
+| Panel | RED question | PromQL |
+| --- | --- | --- |
+| Rate | How many requests per second? | `sum by (route) (rate(http_requests_total[1m]))` |
+| Errors | How many of those are 5xx? | `sum by (route) (rate(http_requests_total{status=~"5.."}[1m]))` |
+| Duration | How slow is the 99th percentile? | `histogram_quantile(0.99, sum by (le, route) (rate(http_request_duration_seconds_bucket[1m])))` |
+
+Three runs of each demo printed the same lines. `demo:logs`: `non-json-lines=0`, `layers=3`, `distinct-trace-ids=1`, `trace-id-matches-header=1`, `burst=8`, `burst-trace-ids=8`, `burst-uneven=0`, `secret-req-logged=1`, `secret-in-logs=0`. `demo:metrics`: `sent-ok=40`, `sent-fail=10`, `counter-delta=50`, `errors-delta=10`, `above-top-bucket=0`, `series-before=2`, `series-after=2`. `demo:trace`: `spans=16`, `orphan-spans=0`, `trace-matches-header=1`, `trace-matches-log=1`, `span-status-error=1`.
+
+An SLI for this service is the share of catalog reads that are not 5xx. An SLO of 99.5% over 30 days leaves an error budget of `0.005 × 30 × 24 × 60 = 216` minutes in the month.
+
+| Змінна | Джерело | Навіщо |
+| --- | --- | --- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | сховище (#11) | OTLP HTTP endpoint of the collector |
+| `PROMETHEUS_URL` | сховище (#11) | Prometheus base URL |
+| `TRACE_API_URL` | сховище (#11) | Tempo query API |
+| `GRAFANA_URL` | сховище (#11) | Grafana base URL |
+| `GRAFANA_ADMIN_USER` | сховище (#11) | Grafana user |
+| `GRAFANA_ADMIN_PASSWORD` | сховище (#11) | Grafana password |
+
+## AWS
+
+смуга: запасна (LocalStack)
+
+Region: `eu-central-1`. The programs are `infra/base` and `infra/demo`. The npm scripts are in `infra/base/package.json` (that path sorts first) and again at the repository root. Every one of them goes through `scripts/with-secrets.sh`.
+
+teardown-run: local. The fallback lane has no GitHub Actions run. After `pulumi destroy`, `evidence/demos.txt` contains `state-resources-left=0`. The same file records `tagged-resources-left=0`, `nat-left=0` and `eip-left=0` in `eu-central-1` and in `us-east-1`. `describe-db-instances` and `describe-load-balancers` answer HTTP 501 on this image, so those two counts are not printed as a zero the API did not return.
+
+`localstack/localstack:4.14.0` is pinned on host port `23166`. Pinning to a prior version will opt you out of any future updates or security patches. No `LOCALSTACK_AUTH_TOKEN` is used.
+
+If this AWS account ever existed before, the Free plan is not available: "You would be ineligible for free plan or Free Tier credits if you have an existing AWS account or have had one in the past." The budget and `pulumi destroy` are then the only protection. AWS Organizations and Control Tower were not created. A customer-managed KMS key was not created. No hosted zone was created.
+
+A month in the table below is 730 hours. The course snapshot of 24.08.2026, at the NBU rate of 25.08.2026, sums to $59.79 a month, which is $0.08191 an hour, $0.33 for four hours, and $1.97 a day. Lines I opened myself:
+
+| Line | Rate | Where I saw it | 730 hours |
+| --- | --- | --- | --- |
+| RDS PostgreSQL `db.t4g.micro`, Multi-AZ instance | $0.037/hour | AWS price list dated 24.11.2026, retrieved 25.11.2026 via Costfluent. Single-AZ on the same list is $0.019/hour. | $27.01 |
+| NAT Gateway, eu-central-1 | $0.052/hour, plus $0.052/GB processed | A price-list mirror updated 19.10.2026. The same page lists us-east-1 at $0.045/hour. | not in the $59.79 sum |
+| ALB | $0.027/hour in the 24.08.2026 snapshot | On 26.11.2026 the public ELB page's worked example uses $0.0225/hour and says a partial hour is billed as a full hour. That page did not print a Frankfurt dollar row, so the snapshot figure stays. | $19.71 |
+| gp3 20 GiB, Multi-AZ | $0.274/GiB-month in the snapshot | I did not open a newer Frankfurt gp3 page. | $5.48 |
+| Public IPv4 × 2 | $0.005/hour × 2 in the snapshot | I did not open a newer public-IPv4 page. | $7.30 |
+| LCU | $0.29 for the month | An assumption about a classroom load, not a price-list row. | $0.29 |
+
+RDS and NAT still match the snapshot, so the derivatives above stay. A partial NAT hour is billed as a full hour: $0.052 plus its public IPv4 $0.005 is $0.057. This run did not create a NAT gateway, so that $0.057 was not measured as an invoice. The failed update did allocate the gateway's address; `pulumi destroy` released it, and `eip-left=0`. RDS bills per second with a 10 minute minimum. Twelve hours of budget lag at the snapshot rate is about $0.98. The budget is a letter, not a brake.
+
+The budget resource is `aws.budgets.Budget`: COST, MONTHLY, `limitAmount: "5"`, notification type ACTUAL, GREATER_THAN, 20 percent. FORECASTED is not used. On a real account it is created before the VPC, and the address comes from `HW31_BUDGET_EMAIL`. Community LocalStack answers 501 for budgets, which would stop the free network from being created, so the call is skipped only when `AWS_ENDPOINT_URL` is set. The resource stays in `infra/base/index.ts`.
+
+LocalStack does not apply this IAM policy. I did not verify the policy locally, because it cannot be verified locally. A user with no policies, a user whose policy is Deny on every action, and the key `TOTALLY_FAKE_KEY_12345` all received HTTP 200, with `ENFORCE_IAM=1`. `evidence/localstack-iam.txt` records `deny-all=200`, `fake-key=200`, `enforce-iam-log-lines=0`. `simulate-principal-policy` did return `sim-allowed=allowed` for `rds:DeleteDBInstance` and `sim-denied=explicitDeny` for `rds:RebootDBInstance` (the command needs `--resource-arns '*'` here, or LocalStack raises InternalError). The allow had an empty `MatchedStatements` list, and an action the policy merely does not grant came back `explicitDeny` rather than `implicitDeny`. That is not the AWS decision engine. The same class of lie showed up in HW#26 step 7.4: LocalStack, used there as an S3 stand, accepted requests whose signatures it did not check and did not refuse an anonymous read. Garage does. An anonymous GET is 403, and an expired presign is HTTP 400.
+
+The CI role trusts `token.actions.githubusercontent.com`, requires `aud` `sts.amazonaws.com`, and limits `sub` to `repo:Matvey-Nikishenko/course-project:*`. No action is `*`. What each action is for:
+
+- `ec2:DescribeVpcs`, `ec2:DeleteVpc` — read and delete the VPC.
+- `ec2:DescribeSubnets`, `ec2:DeleteSubnet` — read and delete the four subnets.
+- `ec2:DescribeInternetGateways`, `ec2:DetachInternetGateway`, `ec2:DeleteInternetGateway` — detach and delete the internet gateway.
+- `ec2:DescribeRouteTables`, `ec2:DeleteRoute`, `ec2:DisassociateRouteTable`, `ec2:DeleteRouteTable` — remove routes, associations, and the tables.
+- `ec2:DescribeSecurityGroups`, `ec2:DescribeSecurityGroupRules`, `ec2:RevokeSecurityGroupIngress`, `ec2:RevokeSecurityGroupEgress`, `ec2:DeleteSecurityGroup` — remove the group rules, then the groups.
+- `ec2:DescribeNatGateways`, `ec2:DeleteNatGateway` — delete the NAT gateway when the demo flag created one.
+- `ec2:DescribeAddresses`, `ec2:ReleaseAddress` — release the NAT address. An address left behind is the `eip-left` line.
+- `ec2:DescribeNetworkInterfaces`, `ec2:DeleteNetworkInterface` — delete an interface that still holds a subnet or a security group.
+- `rds:DescribeDBInstances`, `rds:DeleteDBInstance` — find the instance and delete it. `rds:RebootDBInstance` is not granted. That is the negative simulation.
+- `rds:DescribeDBSubnetGroups`, `rds:DeleteDBSubnetGroup` — delete the subnet group after the instance.
+- `rds:ListTagsForResource` — read tags while deleting.
+- `elasticloadbalancing:DescribeLoadBalancers`, `elasticloadbalancing:DescribeListeners`, `elasticloadbalancing:DescribeTargetGroups`, `elasticloadbalancing:DescribeTargetHealth` — read the balancer before deleting it.
+- `elasticloadbalancing:DeleteListener`, `elasticloadbalancing:DeleteTargetGroup`, `elasticloadbalancing:DeleteLoadBalancer` — delete the listener, the target group, then the balancer.
+- `lambda:GetFunction`, `lambda:ListFunctions`, `lambda:GetPolicy`, `lambda:RemovePermission`, `lambda:DeleteFunction` — detach the balancer permission and delete the function.
+- `iam:GetRole`, `iam:ListRolePolicies`, `iam:GetRolePolicy`, `iam:DeleteRolePolicy`, `iam:ListAttachedRolePolicies`, `iam:DetachRolePolicy`, `iam:DeleteRole` — delete the inline policy and then the role.
+- `iam:GetOpenIDConnectProvider`, `iam:ListOpenIDConnectProviders`, `iam:DeleteOpenIDConnectProvider` — delete the GitHub OIDC provider after the role that trusts it.
+- `budgets:ViewBudget`, `budgets:ModifyBudget` — read the budget and delete it. Budgets has no separate delete action.
+- `tag:GetResources` — the per-region tag query in the emptiness check.
+- `sts:GetCallerIdentity` — confirm which account the role entered.
+
+Both simulation outputs are in `evidence/iam.txt`: `sim-allowed=allowed` and `sim-denied=explicitDeny`.
+
+RDS Multi-AZ against the HW#15 stack: the instance takes the primary, the standby failover, encryption of the volume, and one day of automated storage snapshots. It does not take PgBouncer. Pooling stays in the application, on port 6432. The standby is not a read replica, so reads do not move onto it. It does not take `scripts/backup.sh` or the restore drill. Those are a logical dump and a rehearsal of restoring it. A storage snapshot is not that rehearsal.
+
+KMS is the layer under the HW#11 store, the key that would wrap `ENCRYPTION_KEY`. `storageEncrypted: true` uses the AWS-managed `aws/rds` key. A customer-managed key was not created. That key would keep a line on the bill after the same day's destroy.
+
+The HW#28 state backend is `file://` on this laptop (`.pulumi`). A GitHub-hosted worker cannot see that directory, so a real account needs Pulumi Cloud or an S3 backend. This lane also uses a file backend, `.pulumi-aws`, because nothing is billed and the destroy runs here. `PULUMI_CONFIG_PASSPHRASE` stays in the process environment. `pulumi login` was not run.
+
+The base network, measured before it was destroyed: VPC `10.31.0.0/16`, two public subnets (`10.31.1.0/24`, `10.31.2.0/24`) and two private subnets (`10.31.11.0/24`, `10.31.12.0/24`) in `eu-central-1a` and `eu-central-1b`. The private route tables have no `0.0.0.0/0` route to the internet gateway. Port 80 is the only public ingress, on the balancer group. Port 8080 leaves that group only toward the application group. Port 5432 leaves the application group only toward the database group, and enters the database only from that group. There is no NAT in the base stack.
+
+The demo program declares a Multi-AZ PostgreSQL instance (`db.t4g.micro`, gp3 20 GiB, encrypted, one day of backups, not a Multi-AZ cluster), an internet-facing ALB, and a lambda target group. A transform registered before any resource sets `deletionProtection: false` and `skipFinalSnapshot: true`. `pulumi preview` of that program is `evidence/preview-demo.txt` and names `aws:rds/instance:Instance`. `pulumi up` is `evidence/501.txt`. This image's catalog call returns HTTP 404 `licensing.latest_version_not_found`, so the 501 text is "not included in your current license plan or has not yet been emulated by LocalStack", not the older sentence "not included within your LocalStack license". Both sentences are in the 4.14.0 sources. The catalog 404 selects the generic one. Failover, the HTTP check, and the NAT hour were not measured, because those APIs did not stand up. No AZ change, HTTP status, or billed hour was invented. The lambda target is created only when `AWS_ENDPOINT_URL` is unset: without the Docker socket, LocalStack accepts the function and then never finishes deleting it.
+
+## CI/CD
+
+Merging a pull request is the deploy. The pull request workflow (`.github/workflows/pr.yml`) is the graded run. The deploy workflow (`.github/workflows/deploy.yml`) runs on a push to `main` and on `workflow_dispatch`, and it does not build an image.
+
+```
+quality ─────────────┐
+build → scan ────────┼→ deploy → evidence
+oidc ────────────────┘
+```
+
+`quality` runs `tsc --noEmit`, dependency-cruiser, and oasdiff against `openapi/openapi.yaml` on `main`. `build` is the only image build in the workflows. It pushes one tag, `ghcr.io/matvey-nikishenko/course-project:${{ github.sha }}`, and passes the registry digest to `deploy`. `scan` runs `npm run scan` with `SCAN_MAX=200`. `oidc` asks GitHub for an ID token and runs `scripts/oidc-gate.mjs` against `oidc/policy.json`. `deploy` starts kind, runs `pulumi preview`, the cost gate, then `pulumi up`, then `demo:rollout` with `ROLL_MIN=2000`. `evidence` uploads the `pipeline-evidence` artifact with `if: always()`.
+
+The pull request run deploys into a kind cluster named `marketplace` that exists only on that runner. Namespace `marketplace`, NodePort 30080. That is the preview environment. The `main` workflow pulls the same digest and applies it with the same Pulumi program. That is the promotion environment. The image package is public for the duration of grading, so a digest check can read GHCR without credentials. Registry writes use `GITHUB_TOKEN` (`packages: write`). No long-lived cloud key is stored.
+
+`head-sha` in the artifact is `github.event.pull_request.head.sha`. On a pull request, `github.sha` is the merge commit, and that is the human tag on the image. The cluster receives the digest, not the tag.
+
+| Secret | Why |
+| --- | --- |
+| `PACT_BROKER_URL` | Address of the Pact broker for the manual contract workflow. Empty means the compose broker on port 21620. |
+| `PACT_BROKER_TOKEN` | Token for that broker. It does not open a cloud account or the registry. |
+
+| Змінна | Джерело | Навіщо |
+| --- | --- | --- |
+| `JWT_KID` | сховище (#11) | signing key id, same variable as the auth section |
+| `JWT_PRIVATE_KEY` | сховище (#11) | ES256 private key, same variable as the auth section |
+| `JWT_PUBLIC_KEY` | сховище (#11) | ES256 public key, same variable as the auth section |
+| `REFRESH_TOKEN_PEPPER` | сховище (#11) | refresh-token pepper, same variable as the auth section |
+| `STORAGE_ACCESS_KEY` | сховище (#11) | object-store access key, same variable as the files section |
+| `STORAGE_SECRET_KEY` | сховище (#11) | object-store secret key, same variable as the files section |
+| `APP_DB_PASSWORD` | сховище (#11) | database password, same variable as the Kubernetes section |
+| `PULUMI_CONFIG_PASSPHRASE` | сховище (#11) | passphrase of the local Pulumi state |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | сховище (#11) | OTLP endpoint, same variable as the observability section |
+| `PROMETHEUS_URL` | сховище (#11) | Prometheus URL, same variable as the observability section |
+| `TRACE_API_URL` | сховище (#11) | Tempo URL, same variable as the observability section |
+| `GRAFANA_URL` | сховище (#11) | Grafana URL, same variable as the observability section |
+| `GRAFANA_ADMIN_USER` | сховище (#11) | Grafana user, same variable as the observability section |
+| `GRAFANA_ADMIN_PASSWORD` | сховище (#11) | Grafana password, same variable as the observability section |
+
+The pipeline's own credentials are not in this table. GitHub issues them for one job: `GITHUB_TOKEN` for GHCR, and an OIDC token for the gate in `scripts/oidc-gate.mjs`. The trust file is `oidc/policy.json`. It allows `sub` for this repository only, both the numeric form (`repo:Matvey-Nikishenko@54702689/course-project@1354860164:*`, this repository was created on 2026-09-02) and the classic `repo:Matvey-Nikishenko/course-project:*`. A token whose `sub` names another repository is refused even when the signature and `aud` are valid.
+
+GitHub masks a secret in a log only when the exact string appears. It does not mask a base64 rendering of that string, a value split across lines, or a tool that prints the same bytes in another shape. Masking is not a control. Five leak paths were closed with the store: git history, the application log, an image layer, `docker inspect`, and `docker history`. The job log is the sixth. No step that can see a secret runs `echo` of that secret, a bare `env`, `printenv`, or `set -x`.
+
+`src/mapping.ts` prices `resources.requests` on each container in the Pulumi plan. The rates are the Linux/X86 figures from the worked examples on the AWS Fargate pricing page, https://aws.amazon.com/fargate/pricing/, retrieved 2026-11-26: $0.000011244 per vCPU-second and $0.000001235 per GB-second, US East (N. Virginia). A month is 730 hours, the same convention as the AWS section. The kind cluster is not billed. The gate compares that monthly sum with `COST_BUDGET_USD`. The lecture's rule of thumb is a change above $10 a month or above 20 percent. The script enforces the absolute budget the grader sets, so the same plan can fail a budget of 0 and pass a budget of 999999. A pull request that carries the bypass label still prints `gate=fail` or `gate=pass` and then exits 0.
+
+cost-gate-bypass-label: cost-approved
+
 ## Grading
 
 ```bash
@@ -894,6 +1032,12 @@ export JWT_PUBLIC_KEY="$(cat /tmp/pub.b64)"
 export REFRESH_TOKEN_PEPPER=grader-pepper
 export STORAGE_ACCESS_KEY=hw26user
 export STORAGE_SECRET_KEY=hw26secretpass01
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:22918
+export PROMETHEUS_URL=http://127.0.0.1:22901
+export TRACE_API_URL=http://127.0.0.1:22904
+export GRAFANA_URL=http://127.0.0.1:22900
+export GRAFANA_ADMIN_USER=admin
+export GRAFANA_ADMIN_PASSWORD=admin
 printf 'dummy-npm-token' > .npm_token
 npm --prefix infra ci
 npm run image:build
@@ -905,6 +1049,31 @@ npm run demo:pdb
 SCAN_MAX=-1 npm run scan || true
 SCAN_MAX=99999 npm run scan
 npm run destroy && npm run cluster:down
+
+export SKIP_VAULT=1
+export DB_URL=postgres://admin@127.0.0.1:6432/marketplace
+export DB_PASSWORD=admin-bootstrap-only
+node -e 'const {generateKeyPairSync}=require("node:crypto");
+const k=generateKeyPairSync("ec",{namedCurve:"P-256",
+  privateKeyEncoding:{type:"pkcs8",format:"pem"},
+  publicKeyEncoding:{type:"spki",format:"pem"}});
+const fs=require("node:fs");
+fs.writeFileSync("/tmp/priv.b64",Buffer.from(k.privateKey).toString("base64"));
+fs.writeFileSync("/tmp/pub.b64",Buffer.from(k.publicKey).toString("base64"));'
+export JWT_KID=grader
+export JWT_PRIVATE_KEY="$(cat /tmp/priv.b64)"
+export JWT_PUBLIC_KEY="$(cat /tmp/pub.b64)"
+export REFRESH_TOKEN_PEPPER=grader-pepper
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:22918
+export PROMETHEUS_URL=http://127.0.0.1:22901
+export TRACE_API_URL=http://127.0.0.1:22904
+export GRAFANA_URL=http://127.0.0.1:22900
+export GRAFANA_ADMIN_USER=admin
+export GRAFANA_ADMIN_PASSWORD=admin
+docker compose up -d --wait
+npm run demo:logs
+npm run demo:metrics
+npm run demo:trace
 ```
 
 `scripts/backup.sh` and `scripts/restore-drill.sh` read `DATABASE_URL` from
@@ -916,6 +1085,21 @@ app and scripts use host port **6432** (PgBouncer). Direct Postgres stays on
 **5433** for rotate/admin. The cache Redis is **6379** (`allkeys-lru`). The
 queue Redis is **6380** (`noeviction`). Those values are not store secrets:
 the containers are thrown away with `down -v`.
+
+```bash
+git clone https://github.com/Matvey-Nikishenko/course-project.git && cd course-project && git checkout hw-32
+
+npm ci
+
+export SKIP_VAULT=1
+export APP_DB_PASSWORD=grader-secret
+
+npm run demo:gates
+npm run demo:oidc
+PLAN_JSON=/tmp/hw32/plan.json COST_BUDGET_USD=0 npm run gate:cost
+```
+
+`demo:gates` and `demo:oidc` do not call GitHub and do not need a cluster. `gate:cost` reads `plan.json` from the `pipeline-evidence` artifact of a successful run. That file is not committed.
 
 ## HW#9
 

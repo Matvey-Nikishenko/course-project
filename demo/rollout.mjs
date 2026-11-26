@@ -6,6 +6,7 @@ import { startLoad } from '../scripts/loadgen.mjs';
 
 const file = join(tmpdir(), `hw28-rollout-${process.pid}.txt`);
 const url = process.env.ROLL_URL || 'http://127.0.0.1:30080/healthz';
+const minRequests = Number(process.env.ROLL_MIN ?? '5000');
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -31,7 +32,7 @@ async function main() {
       stdio: 'inherit',
     });
     const rolloutSeconds = Math.max(1, Math.round((Date.now() - started) / 1000));
-    while (linesOf(file).length < 5000) await sleep(200);
+    while (linesOf(file).length < minRequests) await sleep(200);
     await load.stop();
     const lines = linesOf(file);
     const requests = lines.length;
@@ -42,7 +43,7 @@ async function main() {
     console.log(`ok=${ok}`);
     console.log(`failed=${failed}`);
     console.log(`rollout-seconds=${rolloutSeconds}`);
-    if (failed !== 0 || requests < 5000) process.exitCode = 1;
+    if (failed !== 0 || requests < minRequests) process.exitCode = 1;
   } finally {
     await load.stop().catch(() => undefined);
     rmSync(file, { force: true });

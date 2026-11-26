@@ -1,6 +1,8 @@
+import './observability/otel';
 import net from 'node:net';
 import { assertAuthSecrets } from './auth/secrets';
 import { lifecycle } from './lifecycle';
+import { logger } from './observability/logger';
 
 // Before Nest, and before the database pool. A missing signing key has to be
 // the error the process names. Importing the app graph first can fail on Postgres
@@ -53,7 +55,7 @@ async function bootstrap(): Promise<void> {
   const port = config.get('PORT');
   await app.listen(port);
   lifecycle.ready = true;
-  console.log(`Marketplace API (NestJS) on http://localhost:${port}`);
+  logger.info({ port }, 'listening');
 
   let stopping = false;
   const stop = async (): Promise<void> => {

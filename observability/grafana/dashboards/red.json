@@ -1,0 +1,49 @@
+{
+  "uid": "marketplace-red",
+  "title": "Marketplace RED",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Rate — requests per second",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (route) (rate(http_requests_total[1m]))"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Errors — 5xx per second",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (route) (rate(http_requests_total{status=~\"5..\"}[1m]))"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Duration — 99th percentile",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.99, sum by (le, route) (rate(http_request_duration_seconds_bucket[1m])))"
+        }
+      ]
+    }
+  ]
+}
